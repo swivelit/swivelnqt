@@ -1,0 +1,898 @@
+/* Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+body {
+    font-family: 'Poppins', sans-serif;
+background: #7ebbdc4d;
+ 
+    color: #ffffff;
+}
+
+/* ===== INDEX PAGE ===== */
+.loader-body {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #000000, #1a1a1a);
+    color: #d4af37;
+}
+
+.loader-box {
+    text-align: center;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* ===== LOGIN PAGE ===== */
+.auth-body {
+ background: #7ebbdc;
+     min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-card {
+      background:
+        radial-gradient(900px 480px at 20% 20%, rgba(126, 187, 220, .52), transparent 60%),
+        radial-gradient(800px 520px at 80% 30%, rgba(47, 127, 158, .30), transparent 58%),
+        linear-gradient(135deg, rgba(11, 31, 42, .93), rgba(18, 51, 66, .85));
+
+    border-radius: 25px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    max-width: 900px;
+    width: 100%;
+    transform: translateY(-12px) scale(1.02);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(224, 198, 51, 0.15);
+}
+
+.auth-left {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(126, 187, 220, 0.35), transparent 40%),
+    radial-gradient(circle at 80% 30%, rgba(192, 213, 236, 0.25), transparent 45%),
+    linear-gradient(135deg, #000000, rgb(138, 182, 201));
+
+
+    
+
+  color: white;
+  padding: 60px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+
+.auth-right {
+    padding: 50px 40px;
+}
+
+.form-control {
+    border-radius: 30px;
+    padding: 12px 18px;
+    
+}
+
+.btn-main {
+    background: linear-gradient(90deg, #d4af37, #b8962e);
+    border: none;
+    border-radius: 30px;
+    padding: 12px;
+    color: #000;
+    width: 100%;
+}
+
+.hidden {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .auth-left {
+        display: none;
+    }
+}
+
+.password-wrapper {
+    position: relative;
+}
+
+.password-wrapper .form-control {
+    padding-right: 45px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    font-size: 18px;
+    color: #b5b5b5;
+}
+
+
+
+
+
+
+.hero {
+    color: white;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.dashboard_hero {
+    color: #d4af37;
+    padding: 80px 20px;
+    text-align: center;
+}
+
+.dashboard_hero_text {
+  position: relative;
+  bottom: 20px;
+  background: rgba(255, 255, 255, 0.30); /* slightly less transparent */
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+
+  padding: 20px;
+
+  color: black;
+  font-weight: 600; /* make text clearer */
+}
+
+
+
+
+
+
+
+
+
+
+footer {
+    background: radial-gradient(900px 480px at 20% 20%, rgba(126, 187, 220, .52), transparent 60%), radial-gradient(800px 520px at 80% 30%, rgba(47, 127, 158, .30), transparent 58%), linear-gradient(135deg, rgba(11, 31, 42, .93), rgba(18, 51, 66, .85));
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+
+.application_container {
+    background: linear-gradient(rgb(0 0 0 / 75%), rgb(26 26 26 / 75%)), url(../images/application_bg.jpg);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+
+/* ===== Animations ===== */
+@keyframes fadeSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-section {
+    animation: fadeSlideUp 0.8s ease forwards;
+}
+
+/* ===== Card Enhancement ===== */
+.app-card {
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* ===== Form UI ===== */
+.form-label {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: black;
+}
+
+.form-control {
+    border-radius: 14px;
+    padding: 12px 14px;
+    border: 1px solid #333;
+    transition: all 0.3s ease;
+    background: white;
+    color: black;
+}
+
+.form-control:focus {
+    border-color: #7ebbdc;
+    box-shadow: 0 0 0 0.15rem rgba(212, 175, 55, 0.3);
+    transform: translateY(-2px);
+}
+
+/* ===== Section Titles ===== */
+.section-title {
+    font-weight: 700;
+    margin-bottom: 20px;
+    position: relative;
+    color: #7ebbdc;
+}
+
+.section-title::after {
+    content: '';
+    width: 60px;
+    height: 4px;
+    background: linear-gradient(90deg, #d4af37, #b8962e);
+    display: block;
+    margin-top: 6px;
+    border-radius: 10px;
+}
+
+/* ===== Button Animation ===== */
+.btn-animated {
+    background: #7ebbdc;
+    border: none;
+    color: #000;
+    border-radius: 30px;
+    padding: 14px 40px;
+    font-weight: 500;
+    transition: all 0.4s ease;
+}
+
+.btn-animated:hover {
+    color: white;
+    transform: translateY(-4px) scale(1.03);
+    box-shadow: 0 15px 35px rgba(212, 175, 55, 0.4);
+}
+
+/* ===== Readonly Field Style ===== */
+input[readonly] {
+    background-color: #7ebbdc;
+    font-weight: 500;
+    color: white;
+}
+
+
+/* -------- NAVBAR -------- */
+.navbar {
+
+      position: relative;
+  z-index: 1000;
+  overflow: visible;
+  height: 80px;              /* 🔒 fixed navbar height */
+  
+       
+  align-items: center; 
+  background: radial-gradient(900px 480px at 20% 20%, rgba(126, 187, 220, .52), transparent 60%), 
+              radial-gradient(800px 520px at 80% 30%, rgba(47, 127, 158, .30), transparent 58%), 
+              linear-gradient(135deg, rgba(11, 31, 42, .93), rgba(18, 51, 66, .85));
+}
+
+
+
+/* Logo styling */
+.logo-img {
+    margin-top: 15px;
+    margin-left: -30px;
+    
+  height: 180px;             /* bigger logo */
+  width: auto;
+
+  transition: transform 0.3s ease;  /* smooth hover */
+}
+
+/* Hover effect */
+.logo-img:hover {
+  transform: scale(1.1);     /* zoom effect */
+}
+
+
+
+
+
+
+
+/* ===== PROFILE MENU ===== */
+.profile-wrapper {
+    position: relative;
+}
+
+.profile-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid white;
+    transition: transform 0.3s ease;
+}
+
+.profile-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-icon:hover {
+    transform: scale(1.08);
+}
+
+
+.container {
+  position: static; /* 🔥 override bootstrap */
+}
+
+.profile-wrapper {
+  position: relative;
+  z-index: 9999;
+}
+
+
+
+
+
+/* Dropdown */
+.profile-menu {
+    position: absolute;
+    right: 0;
+    top: 50px;
+    width: 220px;
+    background: #111111;
+    border-radius: 12px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+    padding: 15px;
+    display: none;
+    animation: fadeSlide 0.3s ease;
+   
+}
+
+.profile-menu.show {
+    display: block;
+}
+
+/* Header */
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.profile-header img {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+}
+
+#profileName {
+  font-weight: 600;
+  color: white;
+}
+
+
+
+.profile-header small {
+    color: #b5b5b5;
+    font-size: smaller;
+}
+
+/* Logout Button */
+.profile-logout {
+    width: 100%;
+    background: #8b0000;
+    color: #fff;
+    border: none;
+    border-radius: 30px;
+    padding: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.profile-logout:hover {
+    background: #bb2d3b;
+    transform: translateY(-2px);
+}
+
+/* Animation */
+@keyframes fadeSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ===== EXAM BOX ===== */
+.exam-box {
+    background: #111111;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.exam-box h5 {
+    font-weight: 600;
+    color: #d4af37;
+}
+
+/* ===== QUESTIONS & OPTIONS ===== */
+.option {
+    border: 1px solid #333;
+    padding: 12px 15px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    background: #0d0d0d;
+    color: #ffffff;
+}
+
+.option:hover {
+    background: #1a1a1a;
+    border-color: #d4af37;
+}
+
+.option.selected {
+    background: #d4af37;
+    color: #000;
+    border-color: #d4af37;
+}
+
+.option input {
+    margin-right: 10px;
+}
+
+.btn-next {
+    border-radius: 50px;
+    padding: 10px 30px;
+    font-weight: 500;
+    background: #d4af37;
+    color: #000;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ===== TIMER & QUESTION COUNT ===== */
+#timer,
+#qCount {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #d4af37;
+}
+
+/* ===== PROCTORING BOX ===== */
+.proctor-box {
+    background: #000000;
+    color: #d4af37;
+    border-radius: 15px;
+    padding: 20px;
+    text-align: center;
+    position: sticky;
+    top: 20px;
+}
+
+.proctor-box h6 {
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.proctor-box video {
+    width: 100%;
+    border-radius: 10px;
+    border: 2px solid #d4af37;
+}
+
+.proctor-box p {
+    font-size: 0.85rem;
+    margin-top: 5px;
+}
+
+/* ===== VIOLATION BANNER ===== */
+.violation-banner {
+    background: #3a2f00;
+    color: #d4af37;
+    padding: 5px 10px;
+    border-radius: 5px;
+    margin-top: 10px;
+    font-weight: 500;
+    text-align: center;
+    transition: opacity 0.3s ease;
+}
+
+/* ===== FINISH EXAM SECTION ===== */
+#finishSection {
+    display: none;
+    padding: 50px 20px;
+    text-align: center;
+    background: #111111;
+    border-radius: 15px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+}
+
+#finishSection h1 {
+    font-size: 3rem;
+    color:#7ebbdd ;
+}
+
+/* ===== TERMINATED EXAM ===== */
+.exam-terminated {
+    background: #111111;
+    border-radius: 15px;
+    padding: 50px;
+    text-align: center;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+    margin-top: 50px;
+}
+
+.exam-terminated h2 {
+    color: #dc3545;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 992px) {
+    .container-max {
+        padding: 10px;
+    }
+
+    .exam-box {
+        min-height: auto;
+    }
+
+    .proctor-box {
+        margin-top: 20px;
+        position: relative;
+        top: 0;
+    }
+}
+
+/* Instruction Css */
+.instruction-card {
+    border-radius: 16px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+}
+
+.instruction-header {
+   
+    color: black;
+    padding: 20px;
+    border-radius: 16px 16px 0 0;
+}
+
+.rule-list li {
+    margin-bottom: 12px;
+}
+
+.warning-box {
+    background: lightgray;
+    border-left: 5px solid #7ebbdd;
+    padding: 15px;
+    border-radius: 8px;
+    color: white;
+}
+
+/* ===== PREMIUM BLACK-GOLD MODULE CARDS ===== */
+.card-module {
+    background: #ffffff;
+    color: #000; /* black text */
+    /* soft gold */
+    border-radius: 22px;
+    border: 1px solid rgba(255, 215, 0, 0.15);
+    box-shadow:
+        0 15px 40px rgba(0, 0, 0, 0.8),
+        inset 0 0 25px rgba(255, 215, 0, 0.03);
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Gold glow border effect */
+.card-module::before {
+    content: "";
+    position: absolute;
+    background: linear-gradient(120deg,
+            transparent,
+            rgba(255, 215, 0, 0.15),
+            transparent);
+    opacity: 0;
+    transition: 0.4s;
+}
+
+.card-module:hover::before {
+    opacity: 1;
+}
+
+.card-module:hover {
+    transform: translateY(-12px) scale(1.02);
+    box-shadow:
+        0 25px 60px rgba(0, 0, 0, 0.9),
+        0 0 35px rgba(255, 215, 0, 0.15);
+}
+
+/* Icons */
+.card-module img {
+    filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.35));
+    transition: transform 0.4s ease;
+}
+
+.card-module:hover img {
+    transform: scale(1.08);
+}
+
+/* Titles */
+.card-module h4 {
+    color: black;
+    /* gold */
+    font-weight: 900;
+    letter-spacing: 0.5px;
+}
+
+/* Text */
+.card-module p {
+    color: black;
+    font-size: 14px;
+}
+
+
+.cardbtn {
+    background: #ffffff;       /* white bg */
+    color: black;            /* blue text */
+    
+  background: #7ebbdcb3;
+    padding: 8px 20px;
+    border-radius: 25px;
+
+    transition: all 0.3s ease;
+}
+
+
+.card-module .cardbtn:hover {
+    background: #7ebbdcb3; /* blue bg */
+    color:white;         /* black text */
+
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 10px 25px rgba(0, 123, 255, 0.4);
+}
+
+
+
+
+
+/* Section background (optional premium look) */
+/* section.container.py-5 {
+    background: radial-gradient(circle at top, #111111, #000000);
+} */
+
+/* ================================
+   TRAINING PAGE – BLACK GOLD THEME
+   ================================ */
+
+
+
+/* -------- BOOTSTRAP CARD OVERRIDE -------- */
+.card {
+    background: #ffffff !important;
+    border: 1px solid #e0e0e0 !important;
+    border-radius: 20px;
+
+    color: #000;
+
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    transition: all 0.35s ease;
+}
+
+/* Card Hover */
+.card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+
+/* Headings */
+.card h4 {
+    color: #000;
+    font-weight: 700;
+}
+
+/* Paragraph */
+.card p {
+    color: #555;
+}
+
+/* Button */
+.btn-main {
+    background: #cce5ff;
+    color: #000;
+    border: 2px solid #007bff;
+
+    padding: 8px 20px;
+    border-radius: 25px;
+
+    transition: all 0.3s ease;
+}
+
+/* Button Hover */
+.btn-main:hover {
+    background: #ffffff;
+    color: #000;
+
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(0, 123, 255, 0.3);
+}
+
+/* Button Click */
+.btn-main:active {
+    transform: scale(0.95);
+}
+
+/* Image Hover */
+.card img {
+    transition: transform 0.3s ease;
+}
+
+.card:hover img {
+    transform: scale(1.1);
+}
+
+
+/* -------- VIDEO PLAYER -------- */
+video {
+    border-radius: 14px;
+    background: #000;
+    box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.25);
+}
+
+/* -------- BUTTONS -------- */
+.btn-primary,
+.btn-success {
+  background: #cce5ff;
+    color: #000;
+    font-weight: 600;
+    border-radius: 30px;
+    padding: 10px 26px;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover,
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(212, 175, 55, 0.55);
+      background:#cce5ff;;
+    color: white;
+}
+
+/* -------- FORM INPUTS -------- */
+.form-control {
+    background:  lightgray !important;
+    border: none;
+    color: #ffffff !important;
+    border-radius: 14px;
+}
+
+.form-control::placeholder {
+    color: #9b9b9b;
+}
+
+
+/* -------- PROFILE MENU FIX -------- */
+.profile-menu {
+  position: absolute;
+  top: 45px;
+  right: 8px;
+  background: linear-gradient(145deg, #0d0d0d, #1a1a1a);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  color: #fff;
+
+  width: fit-content;     /* ✅ auto adjust */
+  max-width: 350px;       /* ✅ prevent too large */
+}
+
+
+
+
+/* -------- CONTAINER SPACING -------- */
+.container {
+    max-width: 1200px;
+}
+
+/* ================= RECORDED VIDEO AREA ================= */
+
+#videosContainer .card {
+    background: linear-gradient(145deg, #111111, #1c1c1c);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    color: #ffffff;
+    border-radius: 16px;
+}
+
+/* ================= PROFILE MENU ================= */
+
+.profile-menu {
+    background: #111111;
+    color: #ffffff;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+}
+
+.profile-header h6 {
+    color: #d4af37;
+}
+
+.profile-header small {
+    color: #b5b5b5;
+}
+
+.profile-logout {
+    background: linear-gradient(90deg, #8b0000, #dc3545);
+}
+
+/* ===============================
+   INSTRUCTION PAGE – BLACK GOLD
+   (NO BUTTON STYLES)
+   =============================== */
+
+/* Instruction card */
+.instruction-card {
+    background: linear-gradient(145deg, #0d0d0d, #1a1a1a);
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    box-shadow:
+        0 20px 55px rgba(0, 0, 0, 0.8),
+        0 0 25px rgba(212, 175, 55, 0.15);
+}
+
+/* Header */
+.instruction-header {
+    background:white;
+    color: black;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+/* Instruction text */
+.instruction-card p,
+.rule-list li {
+    color: #d0d0d0;
+}
+
+/* Highlighted strong text */
+.rule-list strong {
+    color: #7ebbdc;
+}
+
+
+
+/* Checkbox */
+.form-check-input {
+    border-color: #7ebbdd;
+}
+
+.form-check-input:checked {
+    background-color: #7ebbdd;
+    border-color: #7ebbdd;
+}
+
+
+.fw-semibold {
+    font-weight: 600 !important;
+    color: #d0d0d0;
+}

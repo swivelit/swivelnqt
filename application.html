@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Swivel IT | NQT Application</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/style.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+       <div class="container d-flex justify-content-between">
+             <a class="navbar-brand d-flex align-items-center" href="dashboard.html">
+        <img src="assets/images/logo_white.png" alt="Swivel IT Logo" height="80">
+      </a>
+            <div class="profile-wrapper">
+                <div class="profile-icon" onclick="toggleProfileMenu()">
+                    <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Profile">
+                </div>
+
+                <div class="profile-menu" id="profileMenu">
+                    <div class="profile-header">
+                        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
+                        <div>
+                            <h6 class="mb-0">Student</h6>
+                            <small>swivelit@exam.com</small>
+                            <small>Score 3/5</small>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <button class="profile-logout" onclick="logout()">
+                        🚪 Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="application_container">
+        <!-- Header -->
+        <section class="hero text-center">
+            <h1 class="animate-section">NQT Examination Application</h1>
+            <p class="animate-section">Complete the form below to proceed</p>
+        </section>
+
+        <!-- Form -->
+        <section class="container pb-5">
+            <div class="app-card p-4 p-md-5 animate-section">
+
+                <!-- Course Details -->
+                <div class="mb-5">
+                    <h4 class="section-title">Course Details</h4>
+                    <div class="row g-4">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Course Name</label>
+                            <input type="text" class="form-control" value="NQT Exam" readonly>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Domain</label>
+                            <input type="text" class="form-control" value="NQT" readonly>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Duration</label>
+                            <input type="text" class="form-control" value="3 Hours" readonly>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Fees (₹)</label>
+                            <input type="text" class="form-control" value="1000" readonly>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Student Details -->
+               <form onsubmit="examApplication(event)">
+                    <h4 class="section-title">Student Details</h4>
+                    <div class="row g-4">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Age</label>
+                            <input type="number" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Gender</label>
+                            <select class="form-control" required>
+                                <option value="">-- Select Gender --</option>
+                                <option>Male</option>
+                                <option>Female</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">WhatsApp Number</label>
+                            <input type="tel" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">College / University</label>
+                            <input type="text" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Qualification</label>
+                            <input type="text" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Passed Out Year</label>
+                            <input type="number" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">District</label>
+                            <input type="text" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Pincode</label>
+                            <input type="number" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Reference</label>
+                            <input type="text" class="form-control">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Address</label>
+                            <textarea class="form-control" rows="2" required></textarea>
+                        </div>
+
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="text-center mt-5">
+                        <button type="submit" class="btn-animated">
+                            Proceed to Pay ₹1000
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </section>
+
+        <footer>
+            <p>© 2025 Swivel IT & Training Institute | Designed by JEY Groups</p>
+        </footer>
+    </div>
+
+    <script src="assets/js/script.js"></script>
+</body>
+
+</html>

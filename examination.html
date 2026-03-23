@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swivel IT | Online Examination</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Face API -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+
+    <link href="assets/css/style.css" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container d-flex justify-content-between">
+            <a class="navbar-brand d-flex align-items-center" href="dashboard.html">
+        <img src="assets/images/logo_white.png" alt="Swivel IT Logo" height="80">
+      </a>
+            <div class="profile-wrapper">
+                <div class="profile-icon" onclick="toggleProfileMenu()">
+                    <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Profile">
+                </div>
+
+                <div class="profile-menu" id="profileMenu">
+                    <div class="profile-header">
+                        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
+                        <div>
+                            <h6 class="mb-0">Student</h6>
+                            <small>swivelit@exam.com</small>
+                            <small>Score 3/5</small>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <button class="profile-logout" onclick="logout()">
+                        🚪 Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero text-center" style="color: black;">
+        <h1 class="animate-section">NQT Examination - SWIVEL IT</h1>
+    </section>
+
+    <div class="container py-4 container-max">
+        <div class="row g-4">
+
+            <!-- LEFT: Exam -->
+            <div class="col-md-8">
+                <div class="exam-box" id="examSection">
+                    <div class="d-flex justify-content-between mb-4 align-items-center">
+                        <div id="qCount"></div>
+                        <div id="timer"></div>
+                    </div>
+
+                    <h5 id="question" class="mb-4"></h5>
+                    <div id="options" class="mb-4"></div>
+                    <button class="btn btn-primary btn-next" onclick="nextQuestion()">Next</button>
+                </div>
+
+                <div class="exam-box text-center" id="finishSection">
+                    <h2 class="text-success mb-4">Exam Completed</h2>
+                    <h1 id="finalScore"></h1>
+                    <button class="btn btn-secondary mt-4" onclick="dashboard()">Exit</button>
+                </div>
+            </div>
+
+            <!-- RIGHT: Live Proctoring -->
+            <div class="col-md-4">
+                <div class="proctor-box">
+                    <h6 class="mb-3">🔴 Live Proctoring</h6>
+                    <video id="camera" autoplay muted></video>
+                    <p class="mt-2 small">Keep camera ON throughout the exam</p>
+                    <p id="violationCount" class="mt-2 violation-banner">Violations: 0/3</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2025 Swivel IT & Training Institute | Designed by JEY Groups</p>
+    </footer>
+
+    <script src="assets/js/exam.js" defer></script>
+    <script src="assets/js/script.js" defer></script>
+</body>
+
+</html>

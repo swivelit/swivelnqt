@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Swivel IT | Courses</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/style.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container d-flex justify-content-between">
+
+            <a class="navbar-brand d-flex align-items-center" href="dashboard.html">
+                <img src="assets/images/logo_white.png" alt="Swivel IT Logo" height="80">
+            </a>
+
+            <div class="profile-wrapper">
+
+                <div class="profile-icon" onclick="toggleProfileMenu()">
+                    <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
+                </div>
+
+                <div class="profile-menu" id="profileMenu">
+
+                    <div class="profile-header">
+                        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png">
+
+                        <div>
+                            <h6 class="mb-0">Admin</h6>
+                            <small id="userEmail">admin@swivelit.com</small>
+                        </div>
+
+                    </div>
+
+                    <hr>
+
+                    <button class="profile-logout" onclick="logout()">
+                        🚪 Logout
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    </nav>
+
+
+    <div class="application_container">
+
+        <!-- HEADER -->
+        <section class="hero text-center">
+            <h1 class="animate-section">Course Management</h1>
+            <p class="animate-section">Add and manage training courses</p>
+        </section>
+
+
+        <!-- COURSE FORM -->
+        <section class="container pb-5">
+
+            <div class="app-card p-4 p-md-5 animate-section">
+
+                <h4 class="section-title mb-4">Add New Course</h4>
+
+                <form id="courseForm">
+
+                    <div class="row g-4">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Course Name</label>
+                            <input type="text" id="course_name" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Duration</label>
+                            <input type="text" id="duration" class="form-control">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Trainer Name</label>
+                            <input type="text" id="trainer_name" class="form-control">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Trainer Email</label>
+                            <input type="email" id="trainer_email" class="form-control">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Fee (₹)</label>
+                            <input type="number" id="fee" class="form-control">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Google Meet Link</label>
+                            <input type="text" id="gmeet_link" class="form-control">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Status</label>
+                            <select id="status" class="form-control">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label">Description</label>
+                            <textarea id="description" class="form-control"></textarea>
+                        </div>
+
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <button class="btn-animated">
+                            Add Course
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+
+
+            <!-- COURSE LIST -->
+
+            <div class="app-card p-4 mt-4 animate-section">
+
+                <h4 class="section-title mb-4">Course List</h4>
+
+                <table class="table table-bordered">
+
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Course</th>
+                            <th>Duration</th>
+                            <th>Fee</th>
+                            <th>Trainer</th>
+                            <th>Gmeet Link</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="courseTable"></tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
+
+        <!-- FOOTER -->
+
+        <footer>
+            <p>© 2025 Swivel IT & Training Institute | Designed by JEY Groups</p>
+        </footer>
+
+    </div>
+
+
+    <script src="assets/js/course.js"></script>
+    <script src="assets/js/script.js"></script>
+
+</body>
+
+</html>
