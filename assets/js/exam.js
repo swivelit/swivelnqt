@@ -1,3 +1,5 @@
+const API_BASE = window.location.origin;
+
 let examStarted = false;
 let violations = 0;
 const MAX_VIOLATIONS = 3;
@@ -5,7 +7,7 @@ const MAX_VIOLATIONS = 3;
 let current = 0;
 let selected = null;
 let score = 0;
-let time = 3 * 60 * 60; // 3 hours
+let time = 3 * 60 * 60;
 
 let examAttemptId = null;
 
@@ -27,9 +29,6 @@ const finalScoreEl = document.getElementById("finalScore");
 
 let detectionInterval;
 
-/* =====================================================
-   🔐 CHECK APPLICATION EMAIL (ONLY APPLIED USERS)
-===================================================== */
 async function checkExamPermission() {
     const email = localStorage.getItem("email");
 
@@ -40,12 +39,10 @@ async function checkExamPermission() {
     }
 
     try {
-        const res = await fetch("http://localhost:3000/api/application/all");
+        const res = await fetch(`${API_BASE}/api/application/all`);
         const applications = await res.json();
 
-        const allowed = applications.some(
-            app => app.user_email === email
-        );
+        const allowed = applications.some(app => app.user_email === email);
 
         if (!allowed) {
             alert("❌ You have not applied for this exam");
@@ -53,16 +50,13 @@ async function checkExamPermission() {
             return;
         }
 
-        // ✅ Email exists → Start exam
         startExam(email);
-
     } catch (err) {
         console.error(err);
         alert("Unable to verify exam permission");
     }
 }
 
-/* ===================== START EXAM ===================== */
 async function startExam(email) {
     try {
         await faceapi.nets.tinyFaceDetector.loadFromUri(
@@ -82,12 +76,11 @@ async function startExam(email) {
 
         detectionInterval = setInterval(detectHeadTurn, 1000);
 
-        /* 🔹 CREATE / RESUME EXAM ATTEMPT */
-        const res = await fetch("http://localhost:3000/api/exam/start", {
+        const res = await fetch(`${API_BASE}/api/exam/start`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                email: email,
+                email,
                 total_questions: questions.length
             })
         });
@@ -110,7 +103,6 @@ async function startExam(email) {
     }
 }
 
-/* ===================== PROCTORING ===================== */
 async function detectHeadTurn() {
     const detections = await faceapi
         .detectSingleFace(camera, new faceapi.TinyFaceDetectorOptions())
@@ -134,7 +126,6 @@ async function detectHeadTurn() {
     }
 }
 
-/* ===================== QUESTIONS ===================== */
 function loadQuestion() {
     const q = questions[current];
     qCount.innerText = `Question ${current + 1} / ${questions.length}`;
@@ -153,9 +144,7 @@ function loadQuestion() {
 
 function selectOption(el, val) {
     selected = val;
-    document.querySelectorAll(".option").forEach(o =>
-        o.classList.remove("selected")
-    );
+    document.querySelectorAll(".option").forEach(o => o.classList.remove("selected"));
     el.parentElement.classList.add("selected");
 }
 
@@ -166,12 +155,11 @@ function nextQuestion() {
     current >= questions.length ? finishExam() : loadQuestion();
 }
 
-/* ===================== TIMER ===================== */
 function startTimer() {
     setInterval(() => {
-        let h = Math.floor(time / 3600);
-        let m = Math.floor((time % 3600) / 60);
-        let s = time % 60;
+        const h = Math.floor(time / 3600);
+        const m = Math.floor((time % 3600) / 60);
+        const s = time % 60;
 
         timerEl.innerText =
             `${String(h).padStart(2, "0")}:` +
@@ -183,12 +171,11 @@ function startTimer() {
     }, 1000);
 }
 
-/* ===================== VIOLATIONS ===================== */
 function registerViolation(reason) {
     violations++;
     violationCountEl.innerText = `Violations: ${violations}/3`;
 
-    let banner = document.createElement("div");
+    const banner = document.createElement("div");
     banner.className = "violation-banner";
     banner.innerText = `Violation ${violations}/3: ${reason}`;
     document.querySelector(".proctor-box").appendChild(banner);
@@ -196,7 +183,7 @@ function registerViolation(reason) {
     setTimeout(() => banner.remove(), 3000);
 
     if (examAttemptId) {
-        fetch("http://localhost:3000/api/exam/violation", {
+        fetch(`${API_BASE}/api/exam/violation`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -209,7 +196,6 @@ function registerViolation(reason) {
     if (violations >= MAX_VIOLATIONS) terminateExam(reason);
 }
 
-/* ===================== FINISH EXAM ===================== */
 function finishExam() {
     examStarted = false;
     examSection.style.display = "none";
@@ -217,26 +203,25 @@ function finishExam() {
     finalScoreEl.innerText = `${score} / ${questions.length}`;
 
     if (examAttemptId) {
-        fetch("http://localhost:3000/api/exam/finish", {
+        fetch(`${API_BASE}/api/exam/finish`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 exam_attempt_id: examAttemptId,
                 attempted: questions.length,
                 correct: score,
-                score: score
+                score
             })
         });
     }
 }
 
-/* ===================== TERMINATE EXAM ===================== */
 function terminateExam(reason) {
     examStarted = false;
     clearInterval(detectionInterval);
 
     if (examAttemptId) {
-        fetch("http://localhost:3000/api/exam/terminate", {
+        fetch(`${API_BASE}/api/exam/terminate`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -254,23 +239,6 @@ function terminateExam(reason) {
     `;
 }
 
-/* ===================== EVENT BLOCKERS ===================== */
 window.addEventListener("blur", () => {
     if (examStarted) registerViolation("Tab switched");
 });
-
-document.addEventListener("visibilitychange", () => {
-    if (examStarted && document.hidden)
-        registerViolation("Browser minimized");
-});
-
-["copy", "paste", "cut", "contextmenu"].forEach(e =>
-    document.addEventListener(e, ev => ev.preventDefault())
-);
-
-/* ===================== INIT ===================== */
-checkExamPermission();
-
-function dashboard() {
-    window.location.href = "dashboard.html";
-}

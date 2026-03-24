@@ -1,43 +1,39 @@
 const db = require("../config/db");
 
-/* ===================== APPLICATION ===================== */
 exports.getApplicationByEmail = (email, cb) => {
-    db.query(
-        `SELECT * FROM exam_applications WHERE user_email=? LIMIT 1`,
-        [email],
-        (err, rows) => cb(err, rows[0] || null)
-    );
+  db.query(
+    `SELECT * FROM exam_applications WHERE user_email=? LIMIT 1`,
+    [email],
+    (err, rows) => cb(err, rows?.[0] || null)
+  );
 };
 
-/* ===================== USER ===================== */
 exports.getUserByEmail = (email, cb) => {
-    db.query(
-        `SELECT id FROM users WHERE email=? LIMIT 1`,
-        [email],
-        (err, rows) => cb(err, rows[0] || null)
-    );
+  db.query(
+    `SELECT id FROM users WHERE email=? LIMIT 1`,
+    [email],
+    (err, rows) => cb(err, rows?.[0] || null)
+  );
 };
 
-/* ===================== REATTEMPT CHECK ===================== */
 exports.hasAlreadyAttended = (userId, cb) => {
-    db.query(
-        `SELECT id
+  db.query(
+    `SELECT id
          FROM exam_attempts
          WHERE exam_attempt_id = ?
            AND exam_status IN ('COMPLETED', 'TERMINATED')
          LIMIT 1`,
-        [userId],
-        (err, rows) => {
-            if (err) return cb(err);
-            cb(null, rows.length > 0);
-        }
-    );
+    [userId],
+    (err, rows) => {
+      if (err) return cb(err);
+      cb(null, rows.length > 0);
+    }
+  );
 };
 
-/* ===================== START ===================== */
 exports.startExam = (data, cb) => {
-    db.query(
-        `
+  db.query(
+    `
         INSERT INTO exam_attempts
         (
             exam_attempt_id,
@@ -50,23 +46,24 @@ exports.startExam = (data, cb) => {
             started_at
         )
         VALUES (?, ?, ?, ?, ?, ?, 'IN_PROGRESS', NOW())
+        RETURNING id
         `,
-        [
-            data.user_id,
-            data.email,
-            data.full_name,
-            data.nqt_id,
-            data.role,
-            data.total_questions
-        ],
-        cb
-    );
+    [
+      data.user_id,
+      data.email,
+      data.full_name,
+      data.nqt_id,
+      data.role,
+      data.total_questions
+    ]
+  )
+    .then((result) => cb(null, { insertId: result.rows[0].id }))
+    .catch((error) => cb(error));
 };
 
-/* ===================== VIOLATION ===================== */
 exports.saveViolation = (exam_attempt_id, violation_type, cb) => {
-    db.query(
-        `
+  db.query(
+    `
         INSERT INTO exam_violations
         (
             exam_attempt_id,
@@ -87,50 +84,45 @@ exports.saveViolation = (exam_attempt_id, violation_type, cb) => {
             NOW()
         FROM exam_attempts ea
         WHERE ea.id = ?
-        ON DUPLICATE KEY UPDATE
-            violation_count = violation_count + 1,
-            violation_types = CONCAT(
-                IFNULL(violation_types, ''),
-                ', ',
-                VALUES(violation_types)
-            ),
+        ON CONFLICT (exam_attempt_id)
+        DO UPDATE SET
+            violation_count = exam_violations.violation_count + 1,
+            violation_types = CONCAT_WS(', ', exam_violations.violation_types, EXCLUDED.violation_types),
             last_violation_at = NOW()
         `,
-        [violation_type, exam_attempt_id],
-        cb
-    );
+    [violation_type, exam_attempt_id],
+    cb
+  );
 };
 
-/* ===================== FINISH ===================== */
 exports.finishExam = (id, attempted, correct, score, cb) => {
-    db.query(
-        `UPDATE exam_attempts
+  db.query(
+    `UPDATE exam_attempts
          SET attempted_questions=?,
              correct_answers=?,
              score=?,
              exam_status='COMPLETED',
              ended_at=NOW()
          WHERE id=?`,
-        [attempted, correct, score, id],
-        cb
-    );
+    [attempted, correct, score, id],
+    cb
+  );
 };
 
-/* ===================== TERMINATE ===================== */
 exports.terminateExam = (id, cb) => {
-    db.query(
-        `UPDATE exam_attempts
+  db.query(
+    `UPDATE exam_attempts
          SET exam_status='TERMINATED',
              ended_at=NOW()
          WHERE id=?`,
-        [id],
-        cb
-    );
+    [id],
+    cb
+  );
 };
 
 exports.getLatestResultByEmail = (email, cb) => {
-    db.query(
-        `
+  db.query(
+    `
         SELECT score, total_questions
         FROM exam_attempts
         WHERE user_email = ?
@@ -138,11 +130,10 @@ exports.getLatestResultByEmail = (email, cb) => {
         ORDER BY id DESC
         LIMIT 1
         `,
-        [email],
-        (err, rows) => {
-            if (err) return cb(err);
-            cb(null, rows[0] || null);
-        }
-    );
+    [email],
+    (err, rows) => {
+      if (err) return cb(err);
+      cb(null, rows?.[0] || null);
+    }
+  );
 };
-
