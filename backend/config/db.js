@@ -2,17 +2,17 @@ require('dotenv').config();
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  host: process.env.PG_HOST,
-  port: process.env.PG_PORT || 5432,
-  database: process.env.PG_DATABASE,
-  user: process.env.PG_USER,
-  password: process.env.PG_PASSWORD,
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 const connectDB = async () => {
   try {
     const client = await pool.connect();
-    console.log(`PostgreSQL Connected: ${process.env.PG_HOST}`);
+
+    console.log('PostgreSQL Connected to Render DB');
 
     // Create users table if it doesn't exist
     await client.query(`
