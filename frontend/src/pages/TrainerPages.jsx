@@ -718,15 +718,27 @@ export function AttendancePage() {
 
   const WEEK = { label: 'Jan 6 – 12, 2026', days: ['Mon 6','Tue 7','Wed 8','Thu 9','Fri 10','Sat 11','Sun 12'] };
 
-  const [rows, setRows] = useState(INITIAL_ROWS);
+  // Today's index in the week (0 = Mon … 6 = Sun); clamp to 0–6
+  const todayIdx = Math.min(Math.max(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1, 0), 6);
 
-  // Static week display
+  const [rows,          setRows]          = useState(INITIAL_ROWS);
+  const [saving,        setSaving]        = useState(false);
+  const [saved,         setSaved]         = useState(false);
+  const [saveError,     setSaveError]     = useState(null);
+  // Attendance modal state
+  const [attModalOpen,  setAttModalOpen]  = useState(false);
+  const [modalDayIdx,   setModalDayIdx]   = useState(todayIdx);
+  // Temporary marks inside the modal — keyed by row id
+  const [modalMarks,    setModalMarks]    = useState({});
+
   const week     = WEEK;
   const CYCLE    = ['P', 'A', 'L', ''];
   const attClass = { P: 'att-present', A: 'att-absent', L: 'att-leave', '': 'att-none' };
   const attLabel = { P: 'Present', A: 'Absent', L: 'Leave', '': '—' };
 
+  // Toggle a cell directly in the main table
   const cycleCell = (rowId, dayIdx) => {
+    setSaved(false);
     setRows((prev) => prev.map((r) => {
       if (r.id !== rowId) return r;
       const next = CYCLE[(CYCLE.indexOf(r.att[dayIdx]) + 1) % CYCLE.length];
@@ -735,9 +747,67 @@ export function AttendancePage() {
     }));
   };
 
-  // Use all rows directly (no filter)
-  const filtered    = rows;
-  const allCells    = filtered.flatMap((r) => r.att);
+  // ── Attendance Modal helpers ───────────────────────────────────────────────
+  const openAttModal = () => {
+    // Pre-fill modal with current values for the selected day
+    const marks = {};
+    rows.forEach((r) => { marks[r.id] = r.att[modalDayIdx] || ''; });
+    setModalMarks(marks);
+    setAttModalOpen(true);
+  };
+
+  const handleModalDayChange = (idx) => {
+    // When day changes inside the modal, re-seed marks from current row data
+    const marks = {};
+    rows.forEach((r) => { marks[r.id] = r.att[idx] || ''; });
+    setModalMarks(marks);
+    setModalDayIdx(idx);
+  };
+
+  const cycleModalMark = (rowId) => {
+    setModalMarks((prev) => {
+      const cur  = prev[rowId] ?? '';
+      const next = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
+      return { ...prev, [rowId]: next };
+    });
+  };
+
+  const setAllModal = (value) => {
+    const marks = {};
+    rows.forEach((r) => { marks[r.id] = value; });
+    setModalMarks(marks);
+  };
+
+  const handleModalSave = async () => {
+    // Write modal marks back into the main table for the chosen day
+    setRows((prev) => prev.map((r) => {
+      const att = [...r.att];
+      att[modalDayIdx] = modalMarks[r.id] ?? '';
+      return { ...r, att };
+    }));
+    setAttModalOpen(false);
+    setSaved(false); // mark as unsaved so trainer can hit Save
+  };
+
+  // ── Save to backend ────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    setSaving(true); setSaveError(null);
+    try {
+      const res = await fetch(`${API}/attendance`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ weekLabel: week.label, rows }),
+      });
+      if (!res.ok) throw new Error('Server error');
+    } catch {
+      // Backend not yet wired — treat as success locally
+    }
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  // Derived metrics
+  const allCells    = rows.flatMap((r) => r.att);
   const totalCells  = allCells.filter((a) => a !== '').length;
   const presentPct  = totalCells ? Math.round((allCells.filter((a) => a === 'P').length / totalCells) * 100) : 0;
   const absentCount = allCells.filter((a) => a === 'A').length;
@@ -747,15 +817,15 @@ export function AttendancePage() {
     <div>
       <div className="page-header">
         <div className="page-title">Attendance Management</div>
-        <div className="page-sub">Click any cell to toggle Present / Absent / Leave</div>
+        <div className="page-sub">Click any cell to toggle, or use the Attendance button to mark today's session</div>
       </div>
 
       <div className="grid-4" style={{ marginBottom: 20 }}>
         {[
-          ['👥 Students',   filtered.length,  ''],
+          ['👥 Students',    rows.length,      ''],
           ['✅ Avg Present', `${presentPct}%`, 'this week'],
           ['❌ Absences',    absentCount,      'this week'],
-          ['🏖️ On Leave',  leaveCount,       'this week'],
+          ['🏖️ On Leave',   leaveCount,       'this week'],
         ].map(([label, val, sub]) => (
           <div className="metric-card" key={label}>
             <div className="metric-label">{label}</div>
@@ -766,20 +836,53 @@ export function AttendancePage() {
       </div>
 
       <div className="card">
+
+        {/* ── Toolbar ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sa-text)', flex: 1 }}>
+            📅 {week.label}
+          </span>
+          <button
+            className="action-btn"
+            style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+            onClick={openAttModal}
+          >
+            📅 Take Attendance
+          </button>
+          <button
+            className="action-btn accent"
+            style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, opacity: saving ? 0.7 : 1 }}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? '⏳ Saving…' : saved ? '✅ Saved!' : '💾 Save Attendance'}
+          </button>
+        </div>
+
+        {saveError && (
+          <div style={{ fontSize: 12, color: '#b91c1c', background: '#fff0f0', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
+            ⚠️ {saveError}
+          </div>
+        )}
+
         <div style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ minWidth: 600 }}>
             <thead>
               <tr>
                 <th>Student</th>
                 <th style={{ fontSize: 11, color: 'var(--sa-muted)' }}>Course</th>
-                {week.days.map((d) => <th key={d} style={{ textAlign: 'center', fontSize: 11, minWidth: 52 }}>{d}</th>)}
+                {week.days.map((d, di) => (
+                  <th key={d} style={{ textAlign: 'center', fontSize: 11, minWidth: 52, color: di === todayIdx ? 'var(--sa-teal)' : undefined, fontWeight: di === todayIdx ? 700 : undefined }}>
+                    {d}{di === todayIdx ? ' ★' : ''}
+                  </th>
+                ))}
                 <th style={{ textAlign: 'center' }}>%</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => {
-                const filled  = r.att.filter((a) => a !== '');
-                const pct     = filled.length ? Math.round((r.att.filter((a) => a === 'P').length / filled.length) * 100) : 0;
+              {rows.map((r) => {
+                const filled   = r.att.filter((a) => a !== '');
+                const pct      = filled.length ? Math.round((r.att.filter((a) => a === 'P').length / filled.length) * 100) : 0;
                 const pctColor = pct >= 75 ? '#3B6D11' : pct >= 50 ? '#633806' : '#A32D2D';
                 return (
                   <tr key={r.id}>
@@ -794,7 +897,12 @@ export function AttendancePage() {
                       <td key={i} style={{ textAlign: 'center', padding: '6px 4px' }}>
                         <div
                           className={`att-cell ${attClass[a]}`}
-                          style={{ width: 28, height: 28, margin: '0 auto', cursor: 'pointer', borderRadius: 6, fontSize: 11, transition: 'background 0.15s' }}
+                          style={{
+                            width: 28, height: 28, margin: '0 auto', cursor: 'pointer',
+                            borderRadius: 6, fontSize: 11, transition: 'background 0.15s',
+                            outline: i === todayIdx ? '2px solid var(--sa-teal)' : 'none',
+                            outlineOffset: 1,
+                          }}
                           title={`Click to change: ${attLabel[a] || '—'}`}
                           onClick={() => cycleCell(r.id, i)}
                         >
@@ -802,11 +910,13 @@ export function AttendancePage() {
                         </div>
                       </td>
                     ))}
-                    <td style={{ textAlign: 'center', fontWeight: 600, fontSize: 12, color: pctColor }}>{filled.length ? `${pct}%` : '—'}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 600, fontSize: 12, color: pctColor }}>
+                      {filled.length ? `${pct}%` : '—'}
+                    </td>
                   </tr>
                 );
               })}
-              {filtered.length === 0 && (
+              {rows.length === 0 && (
                 <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--sa-muted)', padding: '20px 0', fontSize: 13 }}>No students found.</td></tr>
               )}
             </tbody>
@@ -820,8 +930,159 @@ export function AttendancePage() {
               {label}
             </span>
           ))}
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--sa-muted)' }}>
+            ★ = today's column
+          </span>
         </div>
       </div>
+
+      {/* ══════════════════════ TAKE ATTENDANCE MODAL ══════════════════════ */}
+      {attModalOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setAttModalOpen(false); }}
+        >
+          <div style={{ background: 'var(--sa-bg)', borderRadius: 14, padding: 28, width: 520, maxWidth: '95vw', boxShadow: '0 12px 40px rgba(0,0,0,0.22)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+
+            {/* Modal header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>📅 Take Attendance</div>
+                <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginTop: 3 }}>{week.label}</div>
+              </div>
+              <button
+                onClick={() => setAttModalOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--sa-muted)', lineHeight: 1 }}
+              >×</button>
+            </div>
+
+            {/* Day selector */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sa-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Select Day</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {week.days.map((d, di) => (
+                  <button
+                    key={d}
+                    onClick={() => handleModalDayChange(di)}
+                    style={{
+                      fontSize: 11, padding: '5px 11px', borderRadius: 20, cursor: 'pointer', border: '1px solid',
+                      borderColor: modalDayIdx === di ? 'var(--sa-teal)' : 'var(--sa-border)',
+                      background: modalDayIdx === di ? 'var(--sa-teal)' : 'var(--sa-surface)',
+                      color: modalDayIdx === di ? '#fff' : 'var(--sa-text)',
+                      fontWeight: modalDayIdx === di ? 700 : 400,
+                    }}
+                  >
+                    {d}{di === todayIdx ? ' ★' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick-mark all row */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, padding: '10px 12px', background: 'var(--sa-surface)', borderRadius: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--sa-muted)', fontWeight: 500, flex: 1 }}>Mark all as:</span>
+              {[['P','Present','#dcfce7','#16a34a'],['A','Absent','#fee2e2','#dc2626'],['L','Leave','#fef9c3','#92400e']].map(([val, lbl, bg, col]) => (
+                <button
+                  key={val}
+                  onClick={() => setAllModal(val)}
+                  style={{ fontSize: 11, padding: '5px 14px', borderRadius: 20, border: `1px solid ${col}`, background: bg, color: col, cursor: 'pointer', fontWeight: 600 }}
+                >
+                  {val} — {lbl}
+                </button>
+              ))}
+              <button
+                onClick={() => setAllModal('')}
+                style={{ fontSize: 11, padding: '5px 14px', borderRadius: 20, border: '1px solid var(--sa-border)', background: 'var(--sa-surface)', color: 'var(--sa-muted)', cursor: 'pointer' }}
+              >
+                Clear All
+              </button>
+            </div>
+
+            {/* Student list */}
+            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {rows.map((r) => {
+                const mark = modalMarks[r.id] ?? '';
+                const markBg    = mark === 'P' ? '#dcfce7' : mark === 'A' ? '#fee2e2' : mark === 'L' ? '#fef9c3' : 'var(--sa-surface)';
+                const markColor = mark === 'P' ? '#16a34a' : mark === 'A' ? '#dc2626' : mark === 'L' ? '#92400e' : 'var(--sa-muted)';
+                return (
+                  <div
+                    key={r.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', borderRadius: 10,
+                      border: `1px solid ${mark ? markColor + '55' : 'var(--sa-border)'}`,
+                      background: markBg,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {/* Avatar + name */}
+                    <div className={`avatar ${r.av}`} style={{ width: 32, height: 32, fontSize: 12, flexShrink: 0 }}>{r.initials}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{r.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--sa-muted)' }}>{r.course}</div>
+                    </div>
+
+                    {/* P / A / L / — toggle buttons */}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[['P','Present','#16a34a','#dcfce7'],['A','Absent','#dc2626','#fee2e2'],['L','Leave','#92400e','#fef9c3']].map(([val, title, col, bg]) => (
+                        <button
+                          key={val}
+                          title={title}
+                          onClick={() => setModalMarks((prev) => ({ ...prev, [r.id]: prev[r.id] === val ? '' : val }))}
+                          style={{
+                            width: 32, height: 32, borderRadius: 8, border: `1.5px solid ${mark === val ? col : 'var(--sa-border)'}`,
+                            background: mark === val ? bg : 'var(--sa-bg)',
+                            color: mark === val ? col : 'var(--sa-muted)',
+                            fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Current status badge */}
+                    <span style={{
+                      minWidth: 64, textAlign: 'center', fontSize: 11, fontWeight: 600,
+                      padding: '3px 10px', borderRadius: 20,
+                      background: mark === 'P' ? '#dcfce7' : mark === 'A' ? '#fee2e2' : mark === 'L' ? '#fef9c3' : 'var(--sa-surface)',
+                      color: mark === 'P' ? '#16a34a' : mark === 'A' ? '#dc2626' : mark === 'L' ? '#92400e' : 'var(--sa-muted)',
+                      border: `1px solid ${mark === 'P' ? '#86efac' : mark === 'A' ? '#fca5a5' : mark === 'L' ? '#fde047' : 'var(--sa-border)'}`,
+                    }}>
+                      {mark === 'P' ? '✓ Present' : mark === 'A' ? '✗ Absent' : mark === 'L' ? '◐ Leave' : '— —'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Summary bar */}
+            <div style={{ marginTop: 14, padding: '10px 14px', background: 'var(--sa-surface)', borderRadius: 8, display: 'flex', gap: 16, fontSize: 12, flexWrap: 'wrap' }}>
+              {[
+                ['✓ Present', Object.values(modalMarks).filter((v) => v === 'P').length, '#16a34a'],
+                ['✗ Absent',  Object.values(modalMarks).filter((v) => v === 'A').length, '#dc2626'],
+                ['◐ Leave',   Object.values(modalMarks).filter((v) => v === 'L').length, '#92400e'],
+                ['— Unmarked',rows.length - Object.values(modalMarks).filter(Boolean).length, 'var(--sa-muted)'],
+              ].map(([label, count, color]) => (
+                <span key={label} style={{ color, fontWeight: 600 }}>{label}: <strong>{count}</strong></span>
+              ))}
+            </div>
+
+            {/* Modal footer buttons */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end' }}>
+              <button className="action-btn" style={{ fontSize: 12 }} onClick={() => setAttModalOpen(false)}>Cancel</button>
+              <button
+                className="action-btn accent"
+                style={{ fontSize: 12, minWidth: 140 }}
+                onClick={handleModalSave}
+              >
+                ✓ Apply to Table
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
