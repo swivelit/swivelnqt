@@ -1,6 +1,7 @@
 const sidebarConfig = {
   student: [
     { icon: '📊', label: 'Dashboard', page: 'student-dashboard' },
+    { icon: '🔴', label: 'Live Class',          page: 'trainer-live' },
     { icon: '📚', label: 'My Courses', page: 'student-mycourses' },
     { icon: '▶️', label: 'Continue Learning', page: 'courseDetail' },
     { icon: '✏️', label: 'Assignments', page: 'student-mycourses' },
@@ -16,6 +17,7 @@ const sidebarConfig = {
     { icon: '✏️', label: 'Assignments', page: 'trainer-content' },
     { icon: '❓', label: 'Create Quiz', page: 'trainer-quiz' },
     { icon: '📅', label: 'Attendance', page: 'trainer-attendance' },
+    { icon: '🔴', label: 'Live Class',          page: 'trainer-live' },
     { icon: '📈', label: 'Student Progress', page: 'trainer-dashboard' },
     { icon: '🔔', label: 'Notifications', page: 'student-notifications' },
   ],
