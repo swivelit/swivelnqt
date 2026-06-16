@@ -144,7 +144,8 @@ export function TrainerDashboard({ userName, navigate }) {
                 ['⬆️ Upload New Video',   'trainer-content'],
                 ['❓ Create Quiz',         'trainer-quiz'],
                 ['📅 Mark Attendance',     'trainer-attendance'],
-                ['🔔 Send Notification',   'student-notifications'],
+                ['🔔 Send Notification',    'trainer-notifications'],
+                ['🔴 Schedule Live Class',   'trainer-live'],
               ].map(([label, page]) => (
                 <button key={label} className="action-btn" style={{ justifyContent: 'flex-start' }} onClick={() => navigate(page)}>{label}</button>
               ))}
@@ -1848,6 +1849,711 @@ export function TrainerNotificationsPage() {
               <button className="action-btn accent" onClick={() => { setPreviewOpen(false); handleSend(); }} disabled={sending}>
                 {scheduleMode === 'now' ? '🔔 Send Now' : '🕐 Schedule'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 7. SCHEDULE LIVE CLASS PAGE
+// ════════════════════════════════════════════════════════════════════════════
+export function ScheduleLiveClassPage({ navigate }) {
+  const COURSES   = ['Full Stack Web Development', 'Python with AI', 'Advanced React'];
+  const PLATFORMS = ['Zoom', 'Google Meet', 'Microsoft Teams', 'Jitsi Meet', 'Custom Link'];
+
+  const STATUS_META = {
+    scheduled: { label: 'Scheduled',    bg: '#E6F1FB', color: '#0C447C' },
+    live:      { label: '🔴 Live Now',  bg: '#DCFCE7', color: '#14532D' },
+    completed: { label: 'Completed',    bg: '#EAF3DE', color: '#3B6D11' },
+    cancelled: { label: 'Cancelled',    bg: '#FCEBEB', color: '#A32D2D' },
+  };
+
+  const now        = new Date();
+  const pad        = (n) => String(n).padStart(2, '0');
+  const todayStr   = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const defaultTime= `${pad(now.getHours() + 1)}:00`;
+
+  const INITIAL_CLASSES = [
+    { id: 'lc1', title: 'React Hooks Deep Dive',     course: 'Full Stack Web Development', date: '2026-06-15', time: '10:00', duration: 60,  platform: 'Zoom',          link: 'https://zoom.us/j/123456789',          host: 'Pandeeswaran', enrolled: 142, joined: 0,  status: 'scheduled', description: 'Covers useState, useEffect, useRef and custom hooks.' },
+    { id: 'lc2', title: 'Python Data Wrangling',      course: 'Python with AI',             date: '2026-06-14', time: '14:00', duration: 90,  platform: 'Google Meet',   link: 'https://meet.google.com/abc-defg-hij', host: 'Antony',       enrolled: 98,  joined: 76, status: 'live',      description: 'Live session on Pandas & NumPy for data cleaning.' },
+    { id: 'lc3', title: 'Context API & Redux Basics', course: 'Advanced React',             date: '2026-06-12', time: '11:00', duration: 75,  platform: 'Zoom',          link: 'https://zoom.us/j/987654321',          host: 'Pandeeswaran', enrolled: 65,  joined: 65, status: 'completed', description: 'Introduction to global state management patterns.' },
+    { id: 'lc4', title: 'AI Model Deployment',        course: 'Python with AI',             date: '2026-06-10', time: '15:00', duration: 120, platform: 'Microsoft Teams',link: 'https://teams.microsoft.com/l/123',    host: 'Antony',       enrolled: 98,  joined: 0,  status: 'cancelled', description: 'Cancelled due to trainer unavailability.' },
+  ];
+
+  const [classes,      setClasses]      = useState(INITIAL_CLASSES);
+  const [activeTab,    setActiveTab]    = useState(0);
+  const [filterStat,   setFilterStat]   = useState('all');
+  const [filterCourse, setFilterCourse] = useState('');
+  const [searchQ,      setSearchQ]      = useState('');
+  const [scheduling,   setScheduling]   = useState(false);
+  const [scheduled,    setScheduled]    = useState(false);
+  const [editTarget,   setEditTarget]   = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [detailTarget, setDetailTarget] = useState(null);
+
+  // ── Form fields ────────────────────────────────────────────────────────────
+  const [fTitle,       setFTitle]       = useState('');
+  const [fCourse,      setFCourse]      = useState('Full Stack Web Development');
+  const [fDate,        setFDate]        = useState(todayStr);
+  const [fTime,        setFTime]        = useState(defaultTime);
+  const [fDuration,    setFDuration]    = useState('60');
+  const [fPlatform,    setFPlatform]    = useState('Zoom');
+  const [fLink,        setFLink]        = useState('');
+  const [fDesc,        setFDesc]        = useState('');
+  const [fRecurring,   setFRecurring]   = useState(false);
+  const [fRecurType,   setFRecurType]   = useState('weekly');
+  const [fRecurCount,  setFRecurCount]  = useState('4');
+  const [fNotifyApp,   setFNotifyApp]   = useState(true);
+  const [fNotifyEmail, setFNotifyEmail] = useState(true);
+  const [fNotifySMS,   setFNotifySMS]   = useState(false);
+
+  const ENROLL_MAP = { 'Full Stack Web Development': 142, 'Python with AI': 98, 'Advanced React': 65 };
+  const PLATFORM_EMOJI = { 'Zoom': '📹', 'Google Meet': '📅', 'Microsoft Teams': '🟦', 'Jitsi Meet': '🔗', 'Custom Link': '🔗' };
+
+  const resetForm = () => {
+    setFTitle(''); setFCourse('Full Stack Web Development');
+    setFDate(todayStr); setFTime(defaultTime); setFDuration('60');
+    setFPlatform('Zoom'); setFLink(''); setFDesc('');
+    setFRecurring(false); setFRecurType('weekly'); setFRecurCount('4');
+    setFNotifyApp(true); setFNotifyEmail(true); setFNotifySMS(false);
+    setEditTarget(null);
+  };
+
+  const fillForm = (cls) => {
+    setEditTarget(cls);
+    setFTitle(cls.title); setFCourse(cls.course);
+    setFDate(cls.date); setFTime(cls.time);
+    setFDuration(String(cls.duration)); setFPlatform(cls.platform);
+    setFLink(cls.link); setFDesc(cls.description || '');
+    setActiveTab(0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSchedule = async () => {
+    if (!fTitle.trim())   { alert('Enter a class title.');         return; }
+    if (!fDate || !fTime) { alert('Select a date and time.');      return; }
+    if (!fLink.trim())    { alert('Enter a meeting link / URL.');  return; }
+    setScheduling(true);
+
+    const payload = {
+      title: fTitle, course: fCourse, date: fDate, time: fTime,
+      duration: Number(fDuration), platform: fPlatform, link: fLink,
+      description: fDesc, recurring: fRecurring, recurType: fRecurType,
+      recurCount: Number(fRecurCount),
+      notify: { email: fNotifyEmail, inApp: fNotifyApp, sms: fNotifySMS },
+    };
+
+    try {
+      await fetch(`${API}/live-classes`, {
+        method: editTarget ? 'PUT' : 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ ...payload, id: editTarget?.id }),
+      });
+    } catch { await new Promise((r) => setTimeout(r, 600)); }
+
+    if (editTarget) {
+      setClasses((prev) => prev.map((c) =>
+        c.id === editTarget.id
+          ? { ...c, title: fTitle, course: fCourse, date: fDate, time: fTime, duration: Number(fDuration), platform: fPlatform, link: fLink, description: fDesc }
+          : c
+      ));
+    } else {
+      setClasses((prev) => [{
+        id: `lc-${Date.now()}`, title: fTitle, course: fCourse,
+        date: fDate, time: fTime, duration: Number(fDuration),
+        platform: fPlatform, link: fLink, host: 'Pandeeswaran',
+        enrolled: ENROLL_MAP[fCourse] || 0, joined: 0,
+        status: 'scheduled', description: fDesc,
+      }, ...prev]);
+    }
+
+    setScheduling(false); setScheduled(true); resetForm();
+    setTimeout(() => setScheduled(false), 3000);
+  };
+
+  const handleCancelClass = async () => {
+    try { await fetch(`${API}/live-classes/${cancelTarget.id}/cancel`, { method: 'PUT', headers: authHeaders() }); } catch {}
+    setClasses((prev) => prev.map((c) => c.id === cancelTarget.id ? { ...c, status: 'cancelled' } : c));
+    setCancelTarget(null);
+  };
+
+  const handleMarkComplete = async (id) => {
+    try { await fetch(`${API}/live-classes/${id}/complete`, { method: 'PUT', headers: authHeaders() }); } catch {}
+    setClasses((prev) => prev.map((c) => c.id === id ? { ...c, status: 'completed' } : c));
+  };
+
+  const handleDeleteClass = (id) => {
+    if (!window.confirm('Delete this class permanently?')) return;
+    setClasses((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const filtered = classes.filter((c) => {
+    if (filterStat !== 'all' && c.status !== filterStat) return false;
+    if (filterCourse && c.course !== filterCourse) return false;
+    if (searchQ && !c.title.toLowerCase().includes(searchQ.toLowerCase())) return false;
+    return true;
+  });
+
+  const liveCount      = classes.filter((c) => c.status === 'live').length;
+  const scheduledCount = classes.filter((c) => c.status === 'scheduled').length;
+  const completedCount = classes.filter((c) => c.status === 'completed').length;
+  const totalEnrolled  = classes.reduce((s, c) => s + c.enrolled, 0);
+
+  const StatusBadge = ({ status }) => {
+    const m = STATUS_META[status] || STATUS_META.scheduled;
+    return (
+      <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, fontWeight: 600, background: m.bg, color: m.color, whiteSpace: 'nowrap' }}>
+        {m.label}
+      </span>
+    );
+  };
+
+  const previewDate = fDate
+    ? new Date(fDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    : 'Date not set';
+
+  return (
+    <div>
+      <div className="page-header">
+        <div className="page-title">Live Classes</div>
+        <div className="page-sub">Schedule, manage and track your live teaching sessions</div>
+      </div>
+
+      {/* ── Metrics ── */}
+      <div className="grid-4" style={{ marginBottom: 20 }}>
+        {[
+          ['🔴 Live Now',    liveCount,                     liveCount > 0 ? 'in progress' : 'none running'],
+          ['📅 Scheduled',   scheduledCount,                'upcoming'],
+          ['✅ Completed',   completedCount,                'this month'],
+          ['👥 Total Reach', totalEnrolled.toLocaleString(),'enrolled students'],
+        ].map(([label, val, sub]) => (
+          <div className="metric-card" key={label}>
+            <div className="metric-label">{label}</div>
+            <div className="metric-value">{val}</div>
+            <div className="metric-sub">{sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Live Banner ── */}
+      {liveCount > 0 && (
+        <div className="live-banner">
+          <span className="live-dot" />
+          <div style={{ flex: 1 }}>
+            <div className="live-banner-title">
+              {liveCount} Class{liveCount > 1 ? 'es' : ''} Live Right Now
+            </div>
+            <div className="live-banner-sub">
+              {classes.filter((c) => c.status === 'live').map((c) => c.title).join(' · ')}
+            </div>
+          </div>
+          <button
+            className="action-btn"
+            style={{ fontSize: 12, background: '#16a34a', color: '#fff', border: 'none' }}
+            onClick={() => { setFilterStat('live'); setActiveTab(1); }}
+          >
+            View Live →
+          </button>
+        </div>
+      )}
+
+      {/* ── Tabs ── */}
+      <div className="tab-group" style={{ marginBottom: 16 }}>
+        {['📅 Schedule Class', '📋 All Classes'].map((label, i) => (
+          <button key={i} className={`tab-btn ${activeTab === i ? 'active' : ''}`} onClick={() => setActiveTab(i)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ══════════════════ TAB 0 – SCHEDULE CLASS ══════════════════ */}
+      {activeTab === 0 && (
+        <div className="grid-2" style={{ alignItems: 'start' }}>
+
+          {/* ── Left Column: Form ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Basic Info */}
+            <div className="card">
+              <div className="card-title">{editTarget ? '✏️ Edit Class' : '📅 New Live Class'}</div>
+
+              <div className="form-group">
+                <label className="form-label">Class Title *</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. React Hooks Deep Dive"
+                  value={fTitle}
+                  onChange={(e) => setFTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Course</label>
+                <select className="form-input" value={fCourse} onChange={(e) => setFCourse(e.target.value)}>
+                  {COURSES.map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ flex: 1, minWidth: 120, margin: 0 }}>
+                  <label className="form-label">Date *</label>
+                  <input className="form-input" type="date" value={fDate} min={todayStr} onChange={(e) => setFDate(e.target.value)} />
+                </div>
+                <div className="form-group" style={{ flex: 1, minWidth: 100, margin: 0 }}>
+                  <label className="form-label">Time *</label>
+                  <input className="form-input" type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} />
+                </div>
+                <div className="form-group" style={{ flex: 1, minWidth: 100, margin: 0 }}>
+                  <label className="form-label">Duration (min)</label>
+                  <select className="form-input" value={fDuration} onChange={(e) => setFDuration(e.target.value)}>
+                    {['30', '45', '60', '75', '90', '120'].map((d) => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 10, marginBottom: 0 }}>
+                <label className="form-label">Description</label>
+                <textarea
+                  className="form-input"
+                  rows={2}
+                  placeholder="What will students learn in this session?"
+                  value={fDesc}
+                  onChange={(e) => setFDesc(e.target.value)}
+                  style={{ resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+
+            {/* Platform & Link */}
+            <div className="card">
+              <div className="card-title">Platform & Meeting Link</div>
+
+              <div className="form-group">
+                <label className="form-label">Platform</label>
+                <div className="platform-grid">
+                  {PLATFORMS.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setFPlatform(p)}
+                      className={`platform-btn${fPlatform === p ? ' platform-btn-active' : ''}`}
+                    >
+                      <span style={{ fontSize: 20 }}>{PLATFORM_EMOJI[p]}</span>
+                      <span style={{ fontSize: 11, marginTop: 4 }}>{p}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Meeting Link / URL *</label>
+                <input
+                  className="form-input"
+                  placeholder={
+                    fPlatform === 'Zoom' ? 'https://zoom.us/j/...' :
+                    fPlatform === 'Google Meet' ? 'https://meet.google.com/...' :
+                    fPlatform === 'Microsoft Teams' ? 'https://teams.microsoft.com/l/...' :
+                    'https://'
+                  }
+                  value={fLink}
+                  onChange={(e) => setFLink(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Recurring */}
+            <div className="card">
+              <div className="card-title">Recurring Session</div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={fRecurring}
+                  onChange={(e) => setFRecurring(e.target.checked)}
+                  style={{ accentColor: 'var(--sa-teal)', width: 16, height: 16 }}
+                />
+                <span style={{ fontWeight: 500 }}>Make this a recurring class</span>
+              </label>
+
+              {fRecurring && (
+                <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: 120, margin: 0 }}>
+                    <label className="form-label">Frequency</label>
+                    <select className="form-input" value={fRecurType} onChange={(e) => setFRecurType(e.target.value)}>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="biweekly">Bi-weekly</option>
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: 100, margin: 0 }}>
+                    <label className="form-label">No. of Sessions</label>
+                    <input className="form-input" type="number" min={2} max={52} value={fRecurCount} onChange={(e) => setFRecurCount(e.target.value)} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notifications */}
+            <div className="card">
+              <div className="card-title">Notify Students</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  ['🔔 In-App notification', fNotifyApp,   setFNotifyApp],
+                  ['📧 Email notification',  fNotifyEmail, setFNotifyEmail],
+                  ['📱 SMS notification',    fNotifySMS,   setFNotifySMS],
+                ].map(([label, val, set]) => (
+                  <label key={label} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                    padding: '9px 12px', borderRadius: 'var(--border-radius-md)', fontSize: 13,
+                    border: `1px solid ${val ? 'var(--sa-teal)' : 'var(--sa-border)'}`,
+                    background: val ? 'rgba(29,158,117,0.06)' : 'var(--sa-surface)',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={val}
+                      onChange={(e) => set(e.target.checked)}
+                      style={{ accentColor: 'var(--sa-teal)', width: 15, height: 15 }}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {editTarget && (
+                <button className="action-btn" style={{ flex: 1 }} onClick={resetForm}>Cancel Edit</button>
+              )}
+              <button
+                className="action-btn accent"
+                style={{ flex: 2, fontSize: 13 }}
+                onClick={handleSchedule}
+                disabled={scheduling}
+              >
+                {scheduling ? '⏳ Saving…'
+                  : scheduled ? '✅ Saved!'
+                  : editTarget ? '💾 Update Class'
+                  : '📅 Schedule Class'}
+              </button>
+            </div>
+          </div>
+
+          {/* ── Right Column: Live Preview ── */}
+          <div className="card" style={{ position: 'sticky', top: 16 }}>
+            <div className="card-title">Class Preview</div>
+
+            <div className="live-preview-card">
+              {/* Header */}
+              <div className="live-preview-header">
+                <div style={{ fontSize: 28 }}>{PLATFORM_EMOJI[fPlatform]}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="live-preview-title">{fTitle || 'Class Title'}</div>
+                  <div className="live-preview-sub">{fCourse}</div>
+                </div>
+                <StatusBadge status="scheduled" />
+              </div>
+
+              {/* Meta rows */}
+              <div className="live-preview-meta">
+                {[
+                  ['📅', previewDate],
+                  ['⏰', fTime ? `${fTime} IST` : 'Time not set'],
+                  ['⏱️', `${fDuration} minutes`],
+                  ['💻', fPlatform],
+                  ['👥', `${ENROLL_MAP[fCourse] || 0} students enrolled`],
+                ].map(([icon, val]) => (
+                  <div key={icon} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid var(--sa-border)' }}>
+                    <span style={{ fontSize: 14, width: 22, textAlign: 'center' }}>{icon}</span>
+                    <span style={{ fontSize: 12, color: 'var(--sa-muted)' }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Description */}
+              {fDesc && (
+                <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginTop: 12, lineHeight: 1.6, padding: '8px 10px', background: 'var(--sa-surface)', borderRadius: 8 }}>
+                  {fDesc}
+                </div>
+              )}
+
+              {/* Link */}
+              {fLink && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 10px', background: 'var(--sa-surface)', borderRadius: 8, border: '1px solid var(--sa-border)' }}>
+                  <span style={{ fontSize: 13 }}>🔗</span>
+                  <span style={{ fontSize: 11, color: 'var(--sa-teal)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fLink}</span>
+                  <button
+                    style={{ fontSize: 10, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--sa-muted)', padding: '2px 4px' }}
+                    onClick={() => navigator.clipboard?.writeText(fLink).catch(() => {})}
+                    title="Copy link"
+                  >
+                    📋
+                  </button>
+                </div>
+              )}
+
+              {/* Recurring badge */}
+              {fRecurring && (
+                <div style={{ marginTop: 10, padding: '6px 12px', borderRadius: 20, background: '#E6F1FB', color: '#0C447C', fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  🔁 Repeats {fRecurType} · {fRecurCount} sessions
+                </div>
+              )}
+
+              {/* Notification channels */}
+              <div style={{ marginTop: 14, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {fNotifyApp   && <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 12, background: 'var(--sa-surface)', border: '1px solid var(--sa-border)' }}>🔔 In-App</span>}
+                {fNotifyEmail && <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 12, background: 'var(--sa-surface)', border: '1px solid var(--sa-border)' }}>📧 Email</span>}
+                {fNotifySMS   && <span style={{ fontSize: 11, padding: '3px 9px', borderRadius: 12, background: 'var(--sa-surface)', border: '1px solid var(--sa-border)' }}>📱 SMS</span>}
+                {!fNotifyApp && !fNotifyEmail && !fNotifySMS && (
+                  <span style={{ fontSize: 11, color: '#A32D2D' }}>⚠️ No channels selected</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════ TAB 1 – ALL CLASSES ══════════════════ */}
+      {activeTab === 1 && (
+        <>
+          {/* Filters */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                ['all',       'All'],
+                ['live',      '🔴 Live'],
+                ['scheduled', 'Scheduled'],
+                ['completed', 'Completed'],
+                ['cancelled', 'Cancelled'],
+              ].map(([key, lbl]) => (
+                <button
+                  key={key}
+                  onClick={() => setFilterStat(key)}
+                  style={{
+                    fontSize: 12, padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+                    border: '0.5px solid var(--sa-border)',
+                    background: filterStat === key ? 'var(--sa-teal)' : 'var(--sa-surface)',
+                    color: filterStat === key ? '#fff' : 'var(--sa-text)',
+                    fontWeight: filterStat === key ? 600 : 400,
+                  }}
+                >
+                  {lbl} ({classes.filter((c) => key === 'all' ? true : c.status === key).length})
+                </button>
+              ))}
+            </div>
+            <select
+              className="form-input"
+              style={{ width: 'auto', minWidth: 180, fontSize: 12 }}
+              value={filterCourse}
+              onChange={(e) => setFilterCourse(e.target.value)}
+            >
+              <option value="">All Courses</option>
+              {COURSES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            <input
+              className="form-input"
+              placeholder="🔍 Search classes…"
+              style={{ flex: 1, minWidth: 160, fontSize: 12 }}
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+            />
+          </div>
+
+          {/* Class Cards */}
+          {filtered.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--sa-muted)' }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>📅</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>No classes found</div>
+              <div style={{ fontSize: 12, marginTop: 6 }}>Try a different filter or schedule a new class.</div>
+              <button className="action-btn accent" style={{ marginTop: 16, fontSize: 12 }} onClick={() => setActiveTab(0)}>
+                + Schedule Class
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {filtered.map((cls) => (
+                <div
+                  key={cls.id}
+                  className="live-class-card"
+                  style={{ borderLeft: cls.status === 'live' ? '4px solid #16a34a' : cls.status === 'cancelled' ? '4px solid #dc2626' : '4px solid var(--sa-teal)' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
+
+                    {/* Platform icon */}
+                    <div style={{
+                      width: 46, height: 46, borderRadius: 12, flexShrink: 0,
+                      background: cls.status === 'live' ? '#DCFCE7' : 'var(--sa-surface)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                      border: `1px solid ${cls.status === 'live' ? '#86efac' : 'var(--sa-border)'}`,
+                    }}>
+                      {PLATFORM_EMOJI[cls.platform]}
+                    </div>
+
+                    {/* Main content */}
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 5 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>{cls.title}</span>
+                        <StatusBadge status={cls.status} />
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginBottom: 8 }}>{cls.course}</div>
+                      <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--sa-muted)', flexWrap: 'wrap' }}>
+                        <span>📅 {cls.date}</span>
+                        <span>⏰ {cls.time} IST</span>
+                        <span>⏱️ {cls.duration} min</span>
+                        <span>💻 {cls.platform}</span>
+                        <span>👥 {cls.enrolled} enrolled{(cls.status === 'live' || cls.status === 'completed') ? ` · ${cls.joined} joined` : ''}</span>
+                      </div>
+                      {cls.description && (
+                        <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginTop: 6, lineHeight: 1.5 }}>{cls.description}</div>
+                      )}
+
+                      {/* Attendance bar for live/completed */}
+                      {(cls.status === 'live' || cls.status === 'completed') && cls.enrolled > 0 && (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--sa-muted)', marginBottom: 4 }}>
+                            <span>Attendance</span>
+                            <span style={{ fontWeight: 600, color: 'var(--sa-text)' }}>
+                              {cls.joined}/{cls.enrolled} ({Math.round((cls.joined / cls.enrolled) * 100)}%)
+                            </span>
+                          </div>
+                          <div className="progress-bar">
+                            <div
+                              className="progress-fill"
+                              style={{
+                                width: `${Math.round((cls.joined / cls.enrolled) * 100)}%`,
+                                background: cls.status === 'live' ? '#16a34a' : 'var(--sa-teal)',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                      {cls.status === 'live' && (
+                        <>
+                          <a
+                            href={cls.link} target="_blank" rel="noreferrer"
+                            className="action-btn"
+                            style={{ fontSize: 12, background: '#16a34a', color: '#fff', border: 'none', textDecoration: 'none', textAlign: 'center' }}
+                          >
+                            🔴 Join Now
+                          </a>
+                          <button className="action-btn" style={{ fontSize: 12, color: '#A32D2D' }} onClick={() => handleMarkComplete(cls.id)}>
+                            ✅ End Class
+                          </button>
+                        </>
+                      )}
+                      {cls.status === 'scheduled' && (
+                        <>
+                          <a
+                            href={cls.link} target="_blank" rel="noreferrer"
+                            className="action-btn"
+                            style={{ fontSize: 12, textDecoration: 'none', textAlign: 'center' }}
+                          >
+                            🔗 Open Link
+                          </a>
+                          <button className="action-btn" style={{ fontSize: 12 }} onClick={() => fillForm(cls)}>✏️ Edit</button>
+                          <button className="action-btn" style={{ fontSize: 12, color: '#A32D2D' }} onClick={() => setCancelTarget(cls)}>✕ Cancel</button>
+                        </>
+                      )}
+                      {(cls.status === 'completed' || cls.status === 'cancelled') && (
+                        <button className="action-btn" style={{ fontSize: 12, color: 'var(--sa-accent)' }} onClick={() => handleDeleteClass(cls.id)}>
+                          🗑️ Delete
+                        </button>
+                      )}
+                      <button className="action-btn" style={{ fontSize: 12 }} onClick={() => setDetailTarget(cls)}>
+                        👁️ Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Cancel Confirmation Modal ── */}
+      {cancelTarget && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setCancelTarget(null); }}
+        >
+          <div style={{ background: 'var(--sa-bg)', border: '1px solid var(--sa-border)', borderRadius: 14, padding: 26, width: 380, maxWidth: '92vw' }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Cancel Class?</div>
+            <div style={{ fontSize: 13, color: 'var(--sa-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+              Are you sure you want to cancel <strong>{cancelTarget.title}</strong> on {cancelTarget.date} at {cancelTarget.time}?
+              Students will be notified.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="action-btn" onClick={() => setCancelTarget(null)}>Keep Class</button>
+              <button
+                className="action-btn"
+                style={{ background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5' }}
+                onClick={handleCancelClass}
+              >
+                Yes, Cancel It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Class Detail Modal ── */}
+      {detailTarget && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setDetailTarget(null); }}
+        >
+          <div style={{ background: 'var(--sa-bg)', border: '1px solid var(--sa-border)', borderRadius: 14, padding: 28, width: 480, maxWidth: '92vw', maxHeight: '88vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 17 }}>{detailTarget.title}</div>
+              <button onClick={() => setDetailTarget(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--sa-muted)' }}>×</button>
+            </div>
+
+            <StatusBadge status={detailTarget.status} />
+
+            <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                ['📚 Course',    detailTarget.course],
+                ['📅 Date',      detailTarget.date],
+                ['⏰ Time',      `${detailTarget.time} IST`],
+                ['⏱️ Duration', `${detailTarget.duration} minutes`],
+                ['💻 Platform',  detailTarget.platform],
+                ['👤 Host',      detailTarget.host],
+                ['👥 Enrolled',  `${detailTarget.enrolled} students`],
+                ['✅ Joined',    (detailTarget.status === 'live' || detailTarget.status === 'completed') ? `${detailTarget.joined} students` : 'N/A'],
+              ].map(([label, val]) => (
+                <div key={label} style={{ display: 'flex', gap: 12, fontSize: 13, borderBottom: '1px solid var(--sa-border)', paddingBottom: 8 }}>
+                  <span style={{ minWidth: 115, color: 'var(--sa-muted)', fontWeight: 500 }}>{label}</span>
+                  <span style={{ flex: 1 }}>{val}</span>
+                </div>
+              ))}
+              {detailTarget.description && (
+                <div style={{ display: 'flex', gap: 12, fontSize: 13, borderBottom: '1px solid var(--sa-border)', paddingBottom: 8 }}>
+                  <span style={{ minWidth: 115, color: 'var(--sa-muted)', fontWeight: 500 }}>📝 Description</span>
+                  <span style={{ flex: 1, lineHeight: 1.6 }}>{detailTarget.description}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 12, fontSize: 13 }}>
+                <span style={{ minWidth: 115, color: 'var(--sa-muted)', fontWeight: 500 }}>🔗 Meeting Link</span>
+                <a href={detailTarget.link} target="_blank" rel="noreferrer" style={{ flex: 1, color: 'var(--sa-teal)', wordBreak: 'break-all' }}>{detailTarget.link}</a>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 22, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              {detailTarget.status === 'scheduled' && (
+                <button className="action-btn" onClick={() => { setDetailTarget(null); fillForm(detailTarget); }}>✏️ Edit</button>
+              )}
+              {detailTarget.status !== 'cancelled' && (
+                <a href={detailTarget.link} target="_blank" rel="noreferrer" className="action-btn accent" style={{ fontSize: 12, textDecoration: 'none' }}>
+                  🔗 Open Meeting
+                </a>
+              )}
+              <button className="action-btn" onClick={() => setDetailTarget(null)}>Close</button>
             </div>
           </div>
         </div>
