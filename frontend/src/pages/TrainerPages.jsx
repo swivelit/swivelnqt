@@ -1871,19 +1871,36 @@ export function ScheduleLiveClassPage({ navigate }) {
     cancelled: { label: 'Cancelled',    bg: '#FCEBEB', color: '#A32D2D' },
   };
 
-  const now        = new Date();
   const pad        = (n) => String(n).padStart(2, '0');
-  const todayStr   = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const defaultTime= `${pad(now.getHours() + 1)}:00`;
+  const getNow     = () => new Date();
+  const initNow    = getNow();
+  const todayStr   = `${initNow.getFullYear()}-${pad(initNow.getMonth() + 1)}-${pad(initNow.getDate())}`;
+  const defaultTime= `${pad(initNow.getHours() + 1)}:00`;
 
-  const INITIAL_CLASSES = [
-    { id: 'lc1', title: 'React Hooks Deep Dive',     course: 'Full Stack Web Development', date: '2026-06-15', time: '10:00', duration: 60,  platform: 'Zoom',          link: 'https://zoom.us/j/123456789',          host: 'Pandeeswaran', enrolled: 142, joined: 0,  status: 'scheduled', description: 'Covers useState, useEffect, useRef and custom hooks.' },
-    { id: 'lc2', title: 'Python Data Wrangling',      course: 'Python with AI',             date: '2026-06-14', time: '14:00', duration: 90,  platform: 'Google Meet',   link: 'https://meet.google.com/abc-defg-hij', host: 'Antony',       enrolled: 98,  joined: 76, status: 'live',      description: 'Live session on Pandas & NumPy for data cleaning.' },
-    { id: 'lc3', title: 'Context API & Redux Basics', course: 'Advanced React',             date: '2026-06-12', time: '11:00', duration: 75,  platform: 'Zoom',          link: 'https://zoom.us/j/987654321',          host: 'Pandeeswaran', enrolled: 65,  joined: 65, status: 'completed', description: 'Introduction to global state management patterns.' },
-    { id: 'lc4', title: 'AI Model Deployment',        course: 'Python with AI',             date: '2026-06-10', time: '15:00', duration: 120, platform: 'Microsoft Teams',link: 'https://teams.microsoft.com/l/123',    host: 'Antony',       enrolled: 98,  joined: 0,  status: 'cancelled', description: 'Cancelled due to trainer unavailability.' },
-  ];
+  const STORAGE_KEY = 'trainer_live_classes';
 
-  const [classes,      setClasses]      = useState(INITIAL_CLASSES);
+  // tick forces re-render every 30 s so statuses stay current without a page refresh
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const [classes,      setClasses]      = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(classes));
+    } catch {}
+  }, [classes]);
+
   const [activeTab,    setActiveTab]    = useState(0);
   const [filterStat,   setFilterStat]   = useState('all');
   const [filterCourse, setFilterCourse] = useState('');
@@ -1957,7 +1974,7 @@ export function ScheduleLiveClassPage({ navigate }) {
     if (editTarget) {
       setClasses((prev) => prev.map((c) =>
         c.id === editTarget.id
-          ? { ...c, title: fTitle, course: fCourse, date: fDate, time: fTime, duration: Number(fDuration), platform: fPlatform, link: fLink, description: fDesc }
+          ? { ...c, title: fTitle, course: fCourse, date: fDate, time: fTime, duration: Number(fDuration), platform: fPlatform, link: fLink, description: fDesc, manuallyEnded: false }
           : c
       ));
     } else {
@@ -1982,7 +1999,8 @@ export function ScheduleLiveClassPage({ navigate }) {
 
   const handleMarkComplete = async (id) => {
     try { await fetch(`${API}/live-classes/${id}/complete`, { method: 'PUT', headers: authHeaders() }); } catch {}
-    setClasses((prev) => prev.map((c) => c.id === id ? { ...c, status: 'completed' } : c));
+    // manuallyEnded prevents computedClasses from re-overriding back to 'live'
+    setClasses((prev) => prev.map((c) => c.id === id ? { ...c, status: 'completed', manuallyEnded: true } : c));
   };
 
   const handleDeleteClass = (id) => {
@@ -1990,17 +2008,37 @@ export function ScheduleLiveClassPage({ navigate }) {
     setClasses((prev) => prev.filter((c) => c.id !== id));
   };
 
-  const filtered = classes.filter((c) => {
+
+  // Recomputed on every render, which is triggered every 30 s by the tick
+  // interval above. Cancelled/manually-ended classes are never auto-overridden;
+  // everything else derives its status purely from the current wall-clock time.
+  const computedClasses = classes.map((c) => {
+    void tick; // depend on tick so React re-runs this on every interval fire
+    // Never auto-override cancelled or manually-ended classes
+    if (c.status === 'cancelled' || c.manuallyEnded) return c;
+    try {
+      const nowTs = getNow();
+      const start = new Date(`${c.date}T${c.time}`);
+      const end   = new Date(start.getTime() + (Number(c.duration) || 60) * 60_000);
+      const auto  = nowTs < start ? 'scheduled' : nowTs <= end ? 'live' : 'completed';
+      return { ...c, status: auto };
+    } catch {
+      return c;
+    }
+  });
+
+
+  const filtered = computedClasses.filter((c) => {
     if (filterStat !== 'all' && c.status !== filterStat) return false;
     if (filterCourse && c.course !== filterCourse) return false;
     if (searchQ && !c.title.toLowerCase().includes(searchQ.toLowerCase())) return false;
     return true;
   });
 
-  const liveCount      = classes.filter((c) => c.status === 'live').length;
-  const scheduledCount = classes.filter((c) => c.status === 'scheduled').length;
-  const completedCount = classes.filter((c) => c.status === 'completed').length;
-  const totalEnrolled  = classes.reduce((s, c) => s + c.enrolled, 0);
+  const liveCount      = computedClasses.filter((c) => c.status === 'live').length;
+  const scheduledCount = computedClasses.filter((c) => c.status === 'scheduled').length;
+  const completedCount = computedClasses.filter((c) => c.status === 'completed').length;
+  const totalEnrolled  = computedClasses.reduce((s, c) => s + c.enrolled, 0);
 
   const StatusBadge = ({ status }) => {
     const m = STATUS_META[status] || STATUS_META.scheduled;
@@ -2047,7 +2085,7 @@ export function ScheduleLiveClassPage({ navigate }) {
               {liveCount} Class{liveCount > 1 ? 'es' : ''} Live Right Now
             </div>
             <div className="live-banner-sub">
-              {classes.filter((c) => c.status === 'live').map((c) => c.title).join(' · ')}
+              {computedClasses.filter((c) => c.status === 'live').map((c) => c.title).join(' · ')}
             </div>
           </div>
           <button
@@ -2338,7 +2376,7 @@ export function ScheduleLiveClassPage({ navigate }) {
                     fontWeight: filterStat === key ? 600 : 400,
                   }}
                 >
-                  {lbl} ({classes.filter((c) => key === 'all' ? true : c.status === key).length})
+                  {lbl} ({computedClasses.filter((c) => key === 'all' ? true : c.status === key).length})
                 </button>
               ))}
             </div>
@@ -2503,53 +2541,56 @@ export function ScheduleLiveClassPage({ navigate }) {
       )}
 
       {/* ── Class Detail Modal ── */}
-      {detailTarget && (
+      {detailTarget && (() => {
+        // Always show the up-to-date computed status, not the stale snapshot
+        const liveDetail = computedClasses.find((c) => c.id === detailTarget.id) || detailTarget;
+        return (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={(e) => { if (e.target === e.currentTarget) setDetailTarget(null); }}
         >
           <div style={{ background: 'var(--sa-bg)', border: '1px solid var(--sa-border)', borderRadius: 14, padding: 28, width: 480, maxWidth: '92vw', maxHeight: '88vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 17 }}>{detailTarget.title}</div>
+              <div style={{ fontWeight: 700, fontSize: 17 }}>{liveDetail.title}</div>
               <button onClick={() => setDetailTarget(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--sa-muted)' }}>×</button>
             </div>
 
-            <StatusBadge status={detailTarget.status} />
+            <StatusBadge status={liveDetail.status} />
 
             <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
-                ['📚 Course',    detailTarget.course],
-                ['📅 Date',      detailTarget.date],
-                ['⏰ Time',      `${detailTarget.time} IST`],
-                ['⏱️ Duration', `${detailTarget.duration} minutes`],
-                ['💻 Platform',  detailTarget.platform],
-                ['👤 Host',      detailTarget.host],
-                ['👥 Enrolled',  `${detailTarget.enrolled} students`],
-                ['✅ Joined',    (detailTarget.status === 'live' || detailTarget.status === 'completed') ? `${detailTarget.joined} students` : 'N/A'],
+                ['📚 Course',    liveDetail.course],
+                ['📅 Date',      liveDetail.date],
+                ['⏰ Time',      `${liveDetail.time} IST`],
+                ['⏱️ Duration', `${liveDetail.duration} minutes`],
+                ['💻 Platform',  liveDetail.platform],
+                ['👤 Host',      liveDetail.host],
+                ['👥 Enrolled',  `${liveDetail.enrolled} students`],
+                ['✅ Joined',    (liveDetail.status === 'live' || liveDetail.status === 'completed') ? `${liveDetail.joined} students` : 'N/A'],
               ].map(([label, val]) => (
                 <div key={label} style={{ display: 'flex', gap: 12, fontSize: 13, borderBottom: '1px solid var(--sa-border)', paddingBottom: 8 }}>
                   <span style={{ minWidth: 115, color: 'var(--sa-muted)', fontWeight: 500 }}>{label}</span>
                   <span style={{ flex: 1 }}>{val}</span>
                 </div>
               ))}
-              {detailTarget.description && (
+              {liveDetail.description && (
                 <div style={{ display: 'flex', gap: 12, fontSize: 13, borderBottom: '1px solid var(--sa-border)', paddingBottom: 8 }}>
                   <span style={{ minWidth: 115, color: 'var(--sa-muted)', fontWeight: 500 }}>📝 Description</span>
-                  <span style={{ flex: 1, lineHeight: 1.6 }}>{detailTarget.description}</span>
+                  <span style={{ flex: 1, lineHeight: 1.6 }}>{liveDetail.description}</span>
                 </div>
               )}
               <div style={{ display: 'flex', gap: 12, fontSize: 13 }}>
                 <span style={{ minWidth: 115, color: 'var(--sa-muted)', fontWeight: 500 }}>🔗 Meeting Link</span>
-                <a href={detailTarget.link} target="_blank" rel="noreferrer" style={{ flex: 1, color: 'var(--sa-teal)', wordBreak: 'break-all' }}>{detailTarget.link}</a>
+                <a href={liveDetail.link} target="_blank" rel="noreferrer" style={{ flex: 1, color: 'var(--sa-teal)', wordBreak: 'break-all' }}>{liveDetail.link}</a>
               </div>
             </div>
 
             <div style={{ marginTop: 22, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              {detailTarget.status === 'scheduled' && (
-                <button className="action-btn" onClick={() => { setDetailTarget(null); fillForm(detailTarget); }}>✏️ Edit</button>
+              {liveDetail.status === 'scheduled' && (
+                <button className="action-btn" onClick={() => { setDetailTarget(null); fillForm(liveDetail); }}>✏️ Edit</button>
               )}
-              {detailTarget.status !== 'cancelled' && (
-                <a href={detailTarget.link} target="_blank" rel="noreferrer" className="action-btn accent" style={{ fontSize: 12, textDecoration: 'none' }}>
+              {liveDetail.status !== 'cancelled' && (
+                <a href={liveDetail.link} target="_blank" rel="noreferrer" className="action-btn accent" style={{ fontSize: 12, textDecoration: 'none' }}>
                   🔗 Open Meeting
                 </a>
               )}
@@ -2557,7 +2598,8 @@ export function ScheduleLiveClassPage({ navigate }) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
