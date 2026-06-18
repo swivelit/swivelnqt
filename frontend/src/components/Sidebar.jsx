@@ -25,7 +25,7 @@ const sidebarConfig = {
     { icon: '📊', label: 'Dashboard', page: 'admin-dashboard' },
     { icon: '👥', label: 'Users', page: 'admin-users' },
     { icon: '📚', label: 'Courses', page: 'admin-courses' },
-    { icon: '👨‍🏫', label: 'Trainers', page: 'admin-dashboard' },
+    { icon: '👨‍🏫', label: 'Trainers', page: 'admin-trainers' },
     { icon: '📈', label: 'Analytics', page: 'admin-analytics' },
     { icon: '🔔', label: 'Notifications', page: 'admin-notifications' },
     { icon: '⚙️', label: 'Settings', page: 'admin-settings' },
