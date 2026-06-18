@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { courses, students } from '../data/data';
 import { thumbEmoji } from '../data/data';
 import { TrainersPage } from './PublicPages';
@@ -49,7 +49,6 @@ export function AdminDashboard({ userName }) {
     </div>
   );
 }
-
 
 export function UserManagementPage() {
   const [users, setUsers] = useState([
@@ -448,7 +447,24 @@ export function CourseManagementPage() {
 }
 
 export function TrainerManagementPage() {
-  const [trainerList, setTrainerList] = useState(TrainersPage);
+  const [trainerList, setTrainerList] = useState([
+    {
+      id: 1,
+      name: 'bastin',
+      email: 'bastin@example.com',
+      specialization: 'React',
+      courses: 5,
+      status: 'active',
+    },
+    {
+      id: 2,
+      name: 'sridhar',
+      email: 'sridhar@example.com',
+      specialization: 'Node.js',
+      courses: 3,
+      status: 'active',
+    },
+  ]);
 
   // CREATE
   const handleAddTrainer = () => {
@@ -467,40 +483,58 @@ export function TrainerManagementPage() {
       status: 'active',
     };
 
-    setTrainerList([...trainerList, newTrainer]);
+    setTrainerList((prev) => [...prev, newTrainer]);
   };
 
   // UPDATE
   const handleEditTrainer = (id) => {
     const trainer = trainerList.find((t) => t.id === id);
 
-    const updatedName = prompt('Edit Trainer Name', trainer.name);
+    if (!trainer) return;
+
+    const updatedName = prompt(
+      'Edit Trainer Name',
+      trainer.name
+    );
+
     if (!updatedName) return;
 
-    const updatedEmail = prompt('Edit Email', trainer.email);
+    const updatedEmail = prompt(
+      'Edit Email',
+      trainer.email
+    );
+
     const updatedSpecialization = prompt(
       'Edit Specialization',
       trainer.specialization
     );
 
     setTrainerList((prev) =>
-  prev.map((t) =>
-    t.id === id
-      ? {
-          ...t,
-          name: updatedName,
-          email: updatedEmail,
-          specialization: updatedSpecialization,
-        }
-      : t
-  )
-);
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              name: updatedName,
+              email: updatedEmail || '',
+              specialization:
+                updatedSpecialization || 'General',
+            }
+          : t
+      )
+    );
+  };
 
-if (confirmDelete) {
-  setTrainerList((prev) =>
-    prev.filter((t) => t.id !== id)
-  );
-}
+  // DELETE
+  const handleDeleteTrainer = (id) => {
+    const confirmDelete = window.confirm(
+      'Are you sure you want to delete this trainer?'
+    );
+
+    if (confirmDelete) {
+      setTrainerList((prev) =>
+        prev.filter((t) => t.id !== id)
+      );
+    }
   };
 
   return (
@@ -529,73 +563,87 @@ if (confirmDelete) {
               <th>Specialization</th>
               <th>Courses</th>
               <th>Status</th>
-              <th></th>
+              <th>Actions</th>
             </tr>
           </thead>
 
           <tbody>
-            {trainerList.map((t) => (
-              <tr key={t.id}>
-                <td>{t.name}</td>
+            {trainerList.length > 0 ? (
+              trainerList.map((t) => (
+                <tr key={t.id}>
+                  <td>{t.name}</td>
 
-                <td
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--sa-muted)',
-                  }}
-                >
-                  {t.email}
-                </td>
-
-                <td>{t.specialization}</td>
-
-                <td>{t.courses}</td>
-
-                <td>
-                  <span
-                    className={`status-pill status-${t.status}`}
-                  >
-                    {t.status}
-                  </span>
-                </td>
-
-                <td>
-                  <div
+                  <td
                     style={{
-                      display: 'flex',
-                      gap: 4,
+                      fontSize: 11,
+                      color: 'var(--sa-muted)',
                     }}
                   >
-                    <button
-                      className="action-btn"
-                      style={{
-                        padding: '3px 8px',
-                        fontSize: 11,
-                      }}
-                      onClick={() =>
-                        handleEditTrainer(t.id)
-                      }
-                    >
-                      ✏️
-                    </button>
+                    {t.email}
+                  </td>
 
-                    <button
-                      className="action-btn"
-                      style={{
-                        padding: '3px 8px',
-                        fontSize: 11,
-                        color: 'var(--sa-accent)',
-                      }}
-                      onClick={() =>
-                        handleDeleteTrainer(t.id)
-                      }
+                  <td>{t.specialization}</td>
+
+                  <td>{t.courses}</td>
+
+                  <td>
+                    <span
+                      className={`status-pill status-${t.status}`}
                     >
-                      🗑️
-                    </button>
-                  </div>
+                      {t.status}
+                    </span>
+                  </td>
+
+                  <td>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 4,
+                      }}
+                    >
+                      <button
+                        className="action-btn"
+                        style={{
+                          padding: '3px 8px',
+                          fontSize: 11,
+                        }}
+                        onClick={() =>
+                          handleEditTrainer(t.id)
+                        }
+                      >
+                        ✏️
+                      </button>
+
+                      <button
+                        className="action-btn"
+                        style={{
+                          padding: '3px 8px',
+                          fontSize: 11,
+                          color: 'var(--sa-accent)',
+                        }}
+                        onClick={() =>
+                          handleDeleteTrainer(t.id)
+                        }
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan="6"
+                  style={{
+                    textAlign: 'center',
+                    padding: '20px',
+                  }}
+                >
+                  No trainers found
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -675,277 +723,6 @@ export function AnalyticsPage() {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-export  function SettingsPage() {
-  const [settings, setSettings] = useState({
-    adminName: "Admin User",
-    email: "admin@example.com",
-    platformName: "Learning Management System",
-    maintenanceMode: false,
-    emailNotifications: true,
-    pushNotifications: false,
-    twoFactorAuth: true,
-  },);
-
-  const handleChange = (e) => {
-    const { name, value, checked, type } = e.target;
-
-    setSettings((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const handleSave = () => {
-    console.log("Saved Settings:", settings);
-    alert("Settings saved successfully!");
-  };
-
-  const cardStyle = {
-    background: "#ffffff",
-    borderRadius: "12px",
-    padding: "20px",
-    marginBottom: "20px",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
-  };
-
-  const inputStyle = {
-    width: "100%",
-    padding: "10px 12px",
-    border: "1px solid #d1d5db",
-    borderRadius: "8px",
-    fontSize: "14px",
-    outline: "none",
-    marginTop: "6px",
-  };
-
-  const labelStyle = {
-    fontSize: "14px",
-    fontWeight: "500",
-    color: "#374151",
-  };
-
-  return (
-    <div
-      style={{
-        padding: "24px",
-        background: "#f5f7fb",
-        minHeight: "100vh",
-      }}
-    >
-      {/* Page Header */}
-      <div
-        style={{
-          marginBottom: "24px",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "28px",
-            fontWeight: "700",
-            color: "#111827",
-            margin: 0,
-          }}
-        >
-          Admin Settings
-        </h1>
-        <p
-          style={{
-            color: "#6b7280",
-            marginTop: "6px",
-          }}
-        >
-          Manage platform settings and preferences.
-        </p>
-      </div>
-
-      {/* Profile Settings */}
-      <div style={cardStyle}>
-        <h2
-          style={{
-            marginBottom: "16px",
-            fontSize: "18px",
-            color: "#111827",
-          }}
-        >
-          Profile Settings
-        </h2>
-
-        <div style={{ marginBottom: "16px" }}>
-          <label style={labelStyle}>Admin Name</label>
-          <input
-            type="text"
-            name="adminName"
-            value={settings.adminName}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Email Address</label>
-          <input
-            type="email"
-            name="email"
-            value={settings.email}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-        </div>
-      </div>
-
-      {/* Platform Settings */}
-      <div style={cardStyle}>
-        <h2
-          style={{
-            marginBottom: "16px",
-            fontSize: "18px",
-            color: "#111827",
-          }}
-        >
-          Platform Settings
-        </h2>
-
-        <div style={{ marginBottom: "16px" }}>
-          <label style={labelStyle}>Platform Name</label>
-          <input
-            type="text"
-            name="platformName"
-            value={settings.platformName}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-        </div>
-
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            name="maintenanceMode"
-            checked={settings.maintenanceMode}
-            onChange={handleChange}
-          />
-          Maintenance Mode
-        </label>
-      </div>
-
-      {/* Notification Settings */}
-      <div style={cardStyle}>
-        <h2
-          style={{
-            marginBottom: "16px",
-            fontSize: "18px",
-            color: "#111827",
-          }}
-        >
-          Notification Settings
-        </h2>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-          }}
-        >
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="checkbox"
-              name="emailNotifications"
-              checked={settings.emailNotifications}
-              onChange={handleChange}
-            />
-            Email Notifications
-          </label>
-
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="checkbox"
-              name="pushNotifications"
-              checked={settings.pushNotifications}
-              onChange={handleChange}
-            />
-            Push Notifications
-          </label>
-        </div>
-      </div>
-
-      {/* Security Settings */}
-      <div style={cardStyle}>
-        <h2
-          style={{
-            marginBottom: "16px",
-            fontSize: "18px",
-            color: "#111827",
-          }}
-        >
-          Security Settings
-        </h2>
-
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            name="twoFactorAuth"
-            checked={settings.twoFactorAuth}
-            onChange={handleChange}
-          />
-          Enable Two-Factor Authentication
-        </label>
-      </div>
-
-      {/* Save Button */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-        }}
-      >
-        <button
-          onClick={handleSave}
-          style={{
-            background: "#2563eb",
-            color: "#fff",
-            border: "none",
-            padding: "12px 24px",
-            borderRadius: "8px",
-            fontSize: "14px",
-            fontWeight: "600",
-            cursor: "pointer",
-          }}
-        >
-          Save Changes
-        </button>
       </div>
     </div>
   );
