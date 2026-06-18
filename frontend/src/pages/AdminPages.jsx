@@ -55,8 +55,7 @@ export function UserManagementPage() {
     ...students,
     {
       name: "Pandeeswaran",
-      email: "pandi@swivel.ac",
-      role: "Trainer",
+      email: "pandi@swivel.com",
       course: "—",
       status: "active",
       initials: "PS",
@@ -77,7 +76,6 @@ export function UserManagementPage() {
     const newUser = {
       name,
       email,
-      role: "Student",
       course: "New Course",
       status: "active",
       initials: name
@@ -148,7 +146,7 @@ export function UserManagementPage() {
       <div className="search-bar">
         <span>🔍</span>
         <input
-          placeholder="Search users by name, email, role..."
+          placeholder="Search users by name, email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -160,9 +158,8 @@ export function UserManagementPage() {
             <tr>
               <th>User</th>
               <th>Email</th>
-              <th>Role</th>
               <th>Enrolled In</th>
-              <th>Status</th>
+              <th>PaymentStatus</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -201,17 +198,7 @@ export function UserManagementPage() {
                   {s.email}
                 </td>
 
-                <td>
-                  <span
-                    className={`role-badge ${
-                      s.role === "Trainer"
-                        ? "role-trainer"
-                        : "role-student"
-                    }`}
-                  >
-                    {s.role}
-                  </span>
-                </td>
+                
 
                 <td style={{ fontSize: 11 }}>
                   {s.course}
@@ -341,10 +328,8 @@ export function CourseManagementPage() {
               <th>Course</th>
               <th>Trainer</th>
               <th>Category</th>
-              <th>Students</th>
-              <th>Price</th>
               <th>Status</th>
-              <th></th>
+              <th>action</th>
             </tr>
           </thead>
 
@@ -385,19 +370,6 @@ export function CourseManagementPage() {
 
                 <td style={{ fontSize: 11 }}>
                   {c.category}
-                </td>
-
-                <td style={{ fontSize: 12 }}>
-                  {c.students}
-                </td>
-
-                <td
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 500,
-                  }}
-                >
-                  {c.price}
                 </td>
 
                 <td>
@@ -948,33 +920,6 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* Platform Settings */}
-      <div style={cardStyle}>
-        <h2>Platform Settings</h2>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Platform Name</label>
-
-          <input
-            type="text"
-            name="platformName"
-            value={settings.platformName}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-        </div>
-
-        <label>
-          <input
-            type="checkbox"
-            name="maintenanceMode"
-            checked={settings.maintenanceMode}
-            onChange={handleChange}
-          />{" "}
-          Maintenance Mode
-        </label>
-      </div>
-
       {/* Notification Settings */}
       <div style={cardStyle}>
         <h2>Notification Settings</h2>
@@ -1096,7 +1041,7 @@ export function SettingsPage() {
       <div style={cardStyle}>
         <h2>Session Management</h2>
 
-        <button className="action-btn accent" onClick={handleLogoutAllDevices}>
+        <button className="action-btn accent" style={{ marginTop: "15px" }} onClick={handleLogoutAllDevices}>
           Logout From All Devices
         </button>
       </div>
@@ -1106,13 +1051,15 @@ export function SettingsPage() {
         style={{
           ...cardStyle,
           border: "1px solid #ef4444",
+          gap: "10px",
+          marginTop: "15px",
         }}
       >
-        <h2 style={{ color: "#dc2626" }}>
+        <h2 style={{ color: "#dc2626",marginTop: "15px" }}>
           Danger Zone
         </h2>
 
-        <p>
+        <p style={{marginTop: "15px" }}>
           Permanently delete your account and all
           saved settings.
         </p>
@@ -1160,26 +1107,111 @@ export function SettingsPage() {
   );
 }
 
-function NotificationsPage() {
+export  function NotificationModule() {
   const [tab, setTab] = useState("push");
   const [push, setPush] = useState({ title: "", message: "" });
-  const [email, setEmail] = useState({ subject: "", recipients: "", content: "" });
-  const [sms, setSms] = useState({ phone: "", message: "" });
+  const [email, setEmail] = useState({
+    subject: "",
+    recipients: "",
+    content: "",
+  });
+  const [sms, setSms] = useState({
+    phone: "",
+    message: "",
+  });
   const [sent, setSent] = useState([]);
 
+  const C = {
+    primary: "#e94560",
+    secondary: "#16a34a",
+    text: "#111827",
+    muted: "#6b7280",
+    border: "#e5e7eb",
+  };
+
+  const card = {
+    background: "#fff",
+    padding: 20,
+    borderRadius: 10,
+    border: `1px solid ${C.border}`,
+  };
+
+  const label = {
+    display: "block",
+    marginBottom: 6,
+    fontSize: 13,
+    fontWeight: 600,
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px",
+    border: `1px solid ${C.border}`,
+    borderRadius: 6,
+    boxSizing: "border-box",
+  };
+
+  const btn = (bg = C.primary, color = "#fff") => ({
+    background: bg,
+    color,
+    border: "none",
+    padding: "10px 14px",
+    borderRadius: 6,
+    cursor: "pointer",
+  });
+
+  const INIT_COURSES = [
+    { id: 1, name: "React Basics" },
+    { id: 2, name: "Node.js Masterclass" },
+    { id: 3, name: "Python Programming" },
+  ];
+
   const send = (type, data) => {
-    setSent(p => [{ id: Date.now(), type, ...data, time: new Date().toLocaleTimeString() }, ...p]);
+    setSent((prev) => [
+      {
+        id: Date.now(),
+        type,
+        ...data,
+        time: new Date().toLocaleTimeString(),
+      },
+      ...prev,
+    ]);
   };
 
   const tabs = ["push", "email", "sms", "course", "payment"];
-  const tabLabels = ["Push", "Email", "SMS", "Course Updates", "Payment Reminders"];
+  const tabLabels = [
+    "Push",
+    "Email",
+    "SMS",
+    "Course Updates",
+    "Payment Reminders",
+  ];
 
   return (
-    <div>
-      <SectionHeader title="🔔 Notifications" />
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+    <div style={{ padding: 20 }}>
+      <h2 style={{ marginBottom: 20 }}>🔔 Notifications</h2>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 20,
+          flexWrap: "wrap",
+        }}
+      >
         {tabs.map((t, i) => (
-          <button key={t} onClick={() => setTab(t)} style={{ ...btn(tab === t ? C.primary : "#f3f4f6", tab === t ? "#fff" : C.text), borderRadius: 20, padding: "6px 14px", fontSize: 12 }}>
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              ...btn(
+                tab === t ? C.primary : "#f3f4f6",
+                tab === t ? "#fff" : C.text
+              ),
+              borderRadius: 20,
+              fontSize: 12,
+            }}
+          >
             {tabLabels[i]}
           </button>
         ))}
@@ -1189,58 +1221,149 @@ function NotificationsPage() {
         <div style={{ flex: 1 }}>
           {tab === "push" && (
             <div style={card}>
-              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Push Notification</h3>
-              <div style={{ marginBottom: 12 }}><label style={label}>Title</label><input value={push.title} onChange={e => setPush(p => ({ ...p, title: e.target.value }))} style={inputStyle} placeholder="Notification title…" /></div>
-              <div style={{ marginBottom: 16 }}><label style={label}>Message</label><textarea value={push.message} onChange={e => setPush(p => ({ ...p, message: e.target.value }))} style={{ ...inputStyle, height: 80, resize: "vertical" }} placeholder="Enter message…" /></div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => send("Push", push)} style={btn()}>📤 Send</button>
-                <button style={btn(C.secondary)}>🕐 Schedule</button>
-                <button style={btn("#f3f4f6", C.text)}>💾 Save Draft</button>
+              <h3>Push Notification</h3>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={label}>Title</label>
+                <input
+                  style={inputStyle}
+                  value={push.title}
+                  onChange={(e) =>
+                    setPush((p) => ({ ...p, title: e.target.value }))
+                  }
+                />
               </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={label}>Message</label>
+                <textarea
+                  style={{ ...inputStyle, height: 80 }}
+                  value={push.message}
+                  onChange={(e) =>
+                    setPush((p) => ({ ...p, message: e.target.value }))
+                  }
+                />
+              </div>
+
+              <button onClick={() => send("Push", push)} style={btn()}>
+                Send Push
+              </button>
             </div>
           )}
 
           {tab === "email" && (
             <div style={card}>
-              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Email Notification</h3>
-              <div style={{ marginBottom: 12 }}><label style={label}>Subject</label><input value={email.subject} onChange={e => setEmail(p => ({ ...p, subject: e.target.value }))} style={inputStyle} /></div>
-              <div style={{ marginBottom: 12 }}><label style={label}>Recipients</label><input value={email.recipients} onChange={e => setEmail(p => ({ ...p, recipients: e.target.value }))} style={inputStyle} placeholder="all / batch-12 / email@example.com" /></div>
-              <div style={{ marginBottom: 16 }}><label style={label}>Content</label><textarea value={email.content} onChange={e => setEmail(p => ({ ...p, content: e.target.value }))} style={{ ...inputStyle, height: 100, resize: "vertical" }} /></div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => send("Email", email)} style={btn()}>📧 Send</button>
-                <button style={btn(C.secondary)}>🕐 Schedule</button>
-                <button style={btn("#f3f4f6", C.text)}>💾 Draft</button>
+              <h3>Email Notification</h3>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={label}>Subject</label>
+                <input
+                  style={inputStyle}
+                  value={email.subject}
+                  onChange={(e) =>
+                    setEmail((p) => ({ ...p, subject: e.target.value }))
+                  }
+                />
               </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={label}>Recipients</label>
+                <input
+                  style={inputStyle}
+                  value={email.recipients}
+                  onChange={(e) =>
+                    setEmail((p) => ({ ...p, recipients: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={label}>Content</label>
+                <textarea
+                  style={{ ...inputStyle, height: 100 }}
+                  value={email.content}
+                  onChange={(e) =>
+                    setEmail((p) => ({ ...p, content: e.target.value }))
+                  }
+                />
+              </div>
+
+              <button onClick={() => send("Email", email)} style={btn()}>
+                Send Email
+              </button>
             </div>
           )}
 
           {tab === "sms" && (
             <div style={card}>
-              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>SMS Alert</h3>
-              <div style={{ marginBottom: 12 }}><label style={label}>Phone Number</label><input value={sms.phone} onChange={e => setSms(p => ({ ...p, phone: e.target.value }))} style={inputStyle} placeholder="+91 XXXXX XXXXX" /></div>
-              <div style={{ marginBottom: 16 }}><label style={label}>Message</label><textarea value={sms.message} onChange={e => setSms(p => ({ ...p, message: e.target.value }))} style={{ ...inputStyle, height: 80, resize: "vertical" }} maxLength={160} /></div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => send("SMS", sms)} style={btn()}>💬 Send SMS</button>
-                <button style={btn(C.secondary)}>🕐 Schedule</button>
+              <h3>SMS Alert</h3>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={label}>Phone Number</label>
+                <input
+                  style={inputStyle}
+                  value={sms.phone}
+                  onChange={(e) =>
+                    setSms((p) => ({ ...p, phone: e.target.value }))
+                  }
+                />
               </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={label}>Message</label>
+                <textarea
+                  style={{ ...inputStyle, height: 80 }}
+                  value={sms.message}
+                  onChange={(e) =>
+                    setSms((p) => ({ ...p, message: e.target.value }))
+                  }
+                />
+              </div>
+
+              <button onClick={() => send("SMS", sms)} style={btn()}>
+                Send SMS
+              </button>
             </div>
           )}
 
           {tab === "course" && (
             <div style={card}>
-              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Send Course Update</h3>
-              <div style={{ marginBottom: 12 }}><label style={label}>Course</label><select style={inputStyle}><option>All Courses</option>{INIT_COURSES.map(c => <option key={c.id}>{c.name}</option>)}</select></div>
-              <div style={{ marginBottom: 16 }}><label style={label}>Update Message</label><textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} placeholder="New video uploaded, session rescheduled…" /></div>
-              <button onClick={() => send("Course", { msg: "Course update" })} style={btn()}>📣 Send Update</button>
+              <h3>Course Update</h3>
+
+              <select style={inputStyle}>
+                <option>All Courses</option>
+                {INIT_COURSES.map((c) => (
+                  <option key={c.id}>{c.name}</option>
+                ))}
+              </select>
+
+              <button
+                style={{ ...btn(), marginTop: 15 }}
+                onClick={() => send("Course", { msg: "Course update" })}
+              >
+                Send Update
+              </button>
             </div>
           )}
 
           {tab === "payment" && (
             <div style={card}>
-              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Payment Reminder</h3>
-              <div style={{ marginBottom: 12 }}><label style={label}>Select Student Group</label><select style={inputStyle}><option>All Pending Payments</option><option>EMI Due This Week</option><option>Overdue Students</option></select></div>
-              <div style={{ marginBottom: 16 }}><label style={label}>Custom Message (optional)</label><textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} placeholder="Your payment is due…" /></div>
-              <button onClick={() => send("Payment", { msg: "Payment reminder" })} style={btn()}>💸 Send Reminder</button>
+              <h3>Payment Reminder</h3>
+
+              <select style={inputStyle}>
+                <option>All Pending Payments</option>
+                <option>EMI Due This Week</option>
+                <option>Overdue Students</option>
+              </select>
+
+              <button
+                style={{ ...btn(), marginTop: 15 }}
+                onClick={() =>
+                  send("Payment", { msg: "Payment reminder" })
+                }
+              >
+                Send Reminder
+              </button>
             </div>
           )}
         </div>
@@ -1248,10 +1371,20 @@ function NotificationsPage() {
         {sent.length > 0 && (
           <div style={{ width: 260 }}>
             <div style={card}>
-              <h4 style={{ margin: "0 0 12px", fontSize: 13, color: C.muted }}>SENT LOG</h4>
-              {sent.map(s => (
-                <div key={s.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${C.border}`, fontSize: 12 }}>
-                  <div style={{ fontWeight: 600, color: C.secondary }}>{s.type} ✓</div>
+              <h4 style={{ color: C.muted }}>SENT LOG</h4>
+
+              {sent.map((s) => (
+                <div
+                  key={s.id}
+                  style={{
+                    marginBottom: 10,
+                    paddingBottom: 10,
+                    borderBottom: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: C.secondary }}>
+                    {s.type} ✓
+                  </div>
                   <div style={{ color: C.muted }}>{s.time}</div>
                 </div>
               ))}

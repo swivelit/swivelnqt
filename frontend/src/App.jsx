@@ -10,7 +10,7 @@ import {
   TrainerDashboard, TrainerContentPage, AttendancePage, CreateQuizPage,
   ScheduleLiveClassPage, AssignmentManagerPage, TrainerNotificationsPage,
 } from './pages/TrainerPages';
-import { AdminDashboard, UserManagementPage, TrainerManagementPage, CourseManagementPage, AnalyticsPage , SettingsPage ,NotificationsPage} from './pages/AdminPages';
+import { AdminDashboard, UserManagementPage, TrainerManagementPage, CourseManagementPage, AnalyticsPage , SettingsPage ,NotificationModule} from './pages/AdminPages';
 
 function renderPage(page, state, actions) {
   const { role, userName, courseView, activeTab, activeFilter, quizAnswers } = state;
@@ -39,8 +39,8 @@ function renderPage(page, state, actions) {
     'admin-courses':         <CourseManagementPage />,
     'admin-trainers':        <TrainerManagementPage />,
     'admin-analytics':       <AnalyticsPage />,
-    'admin-settings': <SettingsPage />,
-    'admin-notifications': <NotificationsPage />  };
+    'admin-settings':        <SettingsPage />,
+    'admin-notifications':   <NotificationModule />  };
 
   return map[page] ?? map['home'];
 }
