@@ -1159,3 +1159,106 @@ export function SettingsPage() {
     </div>
   );
 }
+
+function NotificationsPage() {
+  const [tab, setTab] = useState("push");
+  const [push, setPush] = useState({ title: "", message: "" });
+  const [email, setEmail] = useState({ subject: "", recipients: "", content: "" });
+  const [sms, setSms] = useState({ phone: "", message: "" });
+  const [sent, setSent] = useState([]);
+
+  const send = (type, data) => {
+    setSent(p => [{ id: Date.now(), type, ...data, time: new Date().toLocaleTimeString() }, ...p]);
+  };
+
+  const tabs = ["push", "email", "sms", "course", "payment"];
+  const tabLabels = ["Push", "Email", "SMS", "Course Updates", "Payment Reminders"];
+
+  return (
+    <div>
+      <SectionHeader title="🔔 Notifications" />
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {tabs.map((t, i) => (
+          <button key={t} onClick={() => setTab(t)} style={{ ...btn(tab === t ? C.primary : "#f3f4f6", tab === t ? "#fff" : C.text), borderRadius: 20, padding: "6px 14px", fontSize: 12 }}>
+            {tabLabels[i]}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 20 }}>
+        <div style={{ flex: 1 }}>
+          {tab === "push" && (
+            <div style={card}>
+              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Push Notification</h3>
+              <div style={{ marginBottom: 12 }}><label style={label}>Title</label><input value={push.title} onChange={e => setPush(p => ({ ...p, title: e.target.value }))} style={inputStyle} placeholder="Notification title…" /></div>
+              <div style={{ marginBottom: 16 }}><label style={label}>Message</label><textarea value={push.message} onChange={e => setPush(p => ({ ...p, message: e.target.value }))} style={{ ...inputStyle, height: 80, resize: "vertical" }} placeholder="Enter message…" /></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => send("Push", push)} style={btn()}>📤 Send</button>
+                <button style={btn(C.secondary)}>🕐 Schedule</button>
+                <button style={btn("#f3f4f6", C.text)}>💾 Save Draft</button>
+              </div>
+            </div>
+          )}
+
+          {tab === "email" && (
+            <div style={card}>
+              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Email Notification</h3>
+              <div style={{ marginBottom: 12 }}><label style={label}>Subject</label><input value={email.subject} onChange={e => setEmail(p => ({ ...p, subject: e.target.value }))} style={inputStyle} /></div>
+              <div style={{ marginBottom: 12 }}><label style={label}>Recipients</label><input value={email.recipients} onChange={e => setEmail(p => ({ ...p, recipients: e.target.value }))} style={inputStyle} placeholder="all / batch-12 / email@example.com" /></div>
+              <div style={{ marginBottom: 16 }}><label style={label}>Content</label><textarea value={email.content} onChange={e => setEmail(p => ({ ...p, content: e.target.value }))} style={{ ...inputStyle, height: 100, resize: "vertical" }} /></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => send("Email", email)} style={btn()}>📧 Send</button>
+                <button style={btn(C.secondary)}>🕐 Schedule</button>
+                <button style={btn("#f3f4f6", C.text)}>💾 Draft</button>
+              </div>
+            </div>
+          )}
+
+          {tab === "sms" && (
+            <div style={card}>
+              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>SMS Alert</h3>
+              <div style={{ marginBottom: 12 }}><label style={label}>Phone Number</label><input value={sms.phone} onChange={e => setSms(p => ({ ...p, phone: e.target.value }))} style={inputStyle} placeholder="+91 XXXXX XXXXX" /></div>
+              <div style={{ marginBottom: 16 }}><label style={label}>Message</label><textarea value={sms.message} onChange={e => setSms(p => ({ ...p, message: e.target.value }))} style={{ ...inputStyle, height: 80, resize: "vertical" }} maxLength={160} /></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => send("SMS", sms)} style={btn()}>💬 Send SMS</button>
+                <button style={btn(C.secondary)}>🕐 Schedule</button>
+              </div>
+            </div>
+          )}
+
+          {tab === "course" && (
+            <div style={card}>
+              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Send Course Update</h3>
+              <div style={{ marginBottom: 12 }}><label style={label}>Course</label><select style={inputStyle}><option>All Courses</option>{INIT_COURSES.map(c => <option key={c.id}>{c.name}</option>)}</select></div>
+              <div style={{ marginBottom: 16 }}><label style={label}>Update Message</label><textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} placeholder="New video uploaded, session rescheduled…" /></div>
+              <button onClick={() => send("Course", { msg: "Course update" })} style={btn()}>📣 Send Update</button>
+            </div>
+          )}
+
+          {tab === "payment" && (
+            <div style={card}>
+              <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Payment Reminder</h3>
+              <div style={{ marginBottom: 12 }}><label style={label}>Select Student Group</label><select style={inputStyle}><option>All Pending Payments</option><option>EMI Due This Week</option><option>Overdue Students</option></select></div>
+              <div style={{ marginBottom: 16 }}><label style={label}>Custom Message (optional)</label><textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} placeholder="Your payment is due…" /></div>
+              <button onClick={() => send("Payment", { msg: "Payment reminder" })} style={btn()}>💸 Send Reminder</button>
+            </div>
+          )}
+        </div>
+
+        {sent.length > 0 && (
+          <div style={{ width: 260 }}>
+            <div style={card}>
+              <h4 style={{ margin: "0 0 12px", fontSize: 13, color: C.muted }}>SENT LOG</h4>
+              {sent.map(s => (
+                <div key={s.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${C.border}`, fontSize: 12 }}>
+                  <div style={{ fontWeight: 600, color: C.secondary }}>{s.type} ✓</div>
+                  <div style={{ color: C.muted }}>{s.time}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
