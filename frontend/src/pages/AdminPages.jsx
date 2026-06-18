@@ -727,3 +727,435 @@ export function AnalyticsPage() {
     </div>
   );
 }
+
+export function SettingsPage() {
+  const [settings, setSettings] = useState({
+    adminName: "Admin User",
+    email: "admin@example.com",
+    platformName: "Learning Management System",
+    maintenanceMode: false,
+    emailNotifications: true,
+    pushNotifications: false,
+    twoFactorAuth: true,
+    smsVerification: true,
+  });
+
+  const [profilePic, setProfilePic] = useState(
+    "https://via.placeholder.com/120"
+  );
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  useEffect(() => {
+    const savedSettings = localStorage.getItem("adminSettings");
+
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings);
+
+      setSettings(parsed.settings);
+      setProfilePic(parsed.profilePic);
+    }
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value, checked, type } = e.target;
+
+    setSettings((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleProfilePicChange = (e) => {
+    const file = e.target.files[0];
+
+    if (file) {
+      setProfilePic(URL.createObjectURL(file));
+    }
+  };
+
+  const handlePasswordInput = (e) => {
+    setPasswordData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  const handlePasswordReset = () => {
+    if (
+      !passwordData.currentPassword ||
+      !passwordData.newPassword ||
+      !passwordData.confirmPassword
+    ) {
+      alert("Please fill all password fields");
+      return;
+    }
+
+    if (
+      passwordData.newPassword !==
+      passwordData.confirmPassword
+    ) {
+      alert("Passwords do not match");
+      return;
+    }
+
+    alert("Password changed successfully");
+
+    setPasswordData({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+  };
+
+  const handleForgotPassword = () => {
+    alert(
+      `Password reset link sent to ${settings.email}`
+    );
+  };
+
+  const handleLogoutAllDevices = () => {
+    const confirmLogout = window.confirm(
+      "Logout from all devices?"
+    );
+
+    if (confirmLogout) {
+      alert("Logged out from all devices");
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    const confirmDelete = window.confirm(
+      "This action cannot be undone. Delete account permanently?"
+    );
+
+    if (confirmDelete) {
+      localStorage.removeItem("adminSettings");
+
+      alert("Account deleted successfully");
+    }
+  };
+
+  const handleSave = () => {
+    localStorage.setItem(
+      "adminSettings",
+      JSON.stringify({
+        settings,
+        profilePic,
+      })
+    );
+
+    alert("Settings saved successfully!");
+  };
+
+  const cardStyle = {
+    background: "#fff",
+    borderRadius: "12px",
+    padding: "20px",
+    marginBottom: "20px",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    marginTop: "6px",
+    fontSize: "14px",
+    boxSizing: "border-box",
+  };
+
+  return (
+    <div
+      style={{
+        padding: "24px",
+        background: "#f5f7fb",
+        minHeight: "100vh",
+      }}
+    >
+      <h1
+        style={{
+          marginBottom: "24px",
+          color: "#111827",
+        }}
+      >
+        Admin Settings
+      </h1>
+
+      {/* Profile Picture */}
+      <div style={cardStyle}>
+        <h2>Profile Picture</h2>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "20px",
+            marginTop: "15px",
+          }}
+        >
+          <img
+            src={profilePic}
+            alt="Profile"
+            style={{
+              width: "120px",
+              height: "120px",
+              borderRadius: "50%",
+              objectFit: "cover",
+              border: "3px solid #e5e7eb",
+            }}
+          />
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleProfilePicChange}
+          />
+        </div>
+      </div>
+
+      {/* Profile Settings */}
+      <div style={cardStyle}>
+        <h2>Profile Settings</h2>
+
+        <div style={{ marginBottom: "15px" }}>
+          <label>Admin Name</label>
+
+          <input
+            type="text"
+            name="adminName"
+            value={settings.adminName}
+            onChange={handleChange}
+            style={inputStyle}
+          />
+        </div>
+
+        <div>
+          <label>Email Address</label>
+
+          <input
+            type="email"
+            name="email"
+            value={settings.email}
+            onChange={handleChange}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      {/* Platform Settings */}
+      <div style={cardStyle}>
+        <h2>Platform Settings</h2>
+
+        <div style={{ marginBottom: "15px" }}>
+          <label>Platform Name</label>
+
+          <input
+            type="text"
+            name="platformName"
+            value={settings.platformName}
+            onChange={handleChange}
+            style={inputStyle}
+          />
+        </div>
+
+        <label>
+          <input
+            type="checkbox"
+            name="maintenanceMode"
+            checked={settings.maintenanceMode}
+            onChange={handleChange}
+          />{" "}
+          Maintenance Mode
+        </label>
+      </div>
+
+      {/* Notification Settings */}
+      <div style={cardStyle}>
+        <h2>Notification Settings</h2>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+          <label>
+            <input
+              type="checkbox"
+              name="emailNotifications"
+              checked={settings.emailNotifications}
+              onChange={handleChange}
+            />{" "}
+            Email Notifications
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="pushNotifications"
+              checked={settings.pushNotifications}
+              onChange={handleChange}
+            />{" "}
+            Push Notifications
+          </label>
+        </div>
+      </div>
+
+      {/* Security Settings */}
+      <div style={cardStyle}>
+        <h2>Security Settings</h2>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+          <label>
+            <input
+              type="checkbox"
+              name="twoFactorAuth"
+              checked={settings.twoFactorAuth}
+              onChange={handleChange}
+            />{" "}
+            Email Two-Factor Authentication
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              name="smsVerification"
+              checked={settings.smsVerification}
+              onChange={handleChange}
+            />{" "}
+            SMS Verification
+          </label>
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div style={cardStyle}>
+        <h2>Change Password</h2>
+
+        <input
+          type="password"
+          name="currentPassword"
+          placeholder="Current Password"
+          value={passwordData.currentPassword}
+          onChange={handlePasswordInput}
+          style={inputStyle}
+        />
+
+        <input
+          type="password"
+          name="newPassword"
+          placeholder="New Password"
+          value={passwordData.newPassword}
+          onChange={handlePasswordInput}
+          style={inputStyle}
+        />
+
+        <input
+          type="password"
+          name="confirmPassword"
+          placeholder="Confirm Password"
+          value={passwordData.confirmPassword}
+          onChange={handlePasswordInput}
+          style={inputStyle}
+        />
+
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            marginTop: "15px",
+          }}
+        >
+          <button
+          className="action-btn accent"
+           onClick={handlePasswordReset}>
+            Change Password
+          </button>
+
+          <button className="action-btn"
+           onClick={handleForgotPassword}>
+            Forgot Password
+          </button>
+        </div>
+      </div>
+
+      {/* Session Management */}
+      <div style={cardStyle}>
+        <h2>Session Management</h2>
+
+        <button className="action-btn accent" onClick={handleLogoutAllDevices}>
+          Logout From All Devices
+        </button>
+      </div>
+
+      {/* Danger Zone */}
+      <div
+        style={{
+          ...cardStyle,
+          border: "1px solid #ef4444",
+        }}
+      >
+        <h2 style={{ color: "#dc2626" }}>
+          Danger Zone
+        </h2>
+
+        <p>
+          Permanently delete your account and all
+          saved settings.
+        </p>
+
+        <button
+          onClick={handleDeleteAccount}
+          className="action-btn accent"
+          style={{
+            background: "#dc2626",
+            color: "#fff",
+            border: "none",
+            padding: "10px 20px",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          Delete Account
+        </button>
+      </div>
+
+      {/* Save Button */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+        }}
+      >
+        <button
+          onClick={handleSave}
+          className="action-btn accent"
+          style={{
+            background: "#2563eb",
+            color: "#fff",
+            border: "none",
+            padding: "12px 24px",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "600",
+          }}
+        >
+          Save Changes
+        </button>
+      </div>
+    </div>
+  );
+}
