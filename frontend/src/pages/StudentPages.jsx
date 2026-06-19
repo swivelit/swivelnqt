@@ -247,7 +247,7 @@ export function StudentLiveClassesPage({ studentCourses }) {
   const liveCount      = myClasses.filter((c) => c.status === 'live').length;
   const scheduledCount = myClasses.filter((c) => c.status === 'scheduled').length;
   const completedCount = myClasses.filter((c) => c.status === 'completed').length;
-  const cancelCount    = myClasses.filter((c) => c.status === 'cancelled').length;
+  const cancelledCount = myClasses.filter((c) => c.status === 'cancelled').length;
 
   const StatusBadge = ({ status }) => {
     const m = LIVE_STATUS_META[status] || LIVE_STATUS_META.scheduled;
@@ -303,6 +303,7 @@ export function StudentLiveClassesPage({ studentCourses }) {
           ['live',      '🔴 Live'],
           ['scheduled', 'Scheduled'],
           ['completed', 'Completed'],
+          ['cancelled', 'Cancelled'],
         ].map(([key, lbl]) => (
           <button
             key={key}
@@ -390,6 +391,7 @@ export function StudentLiveClassesPage({ studentCourses }) {
           ))}
         </div>
       )}
+
     </div>
   );
 }
