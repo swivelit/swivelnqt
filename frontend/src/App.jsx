@@ -5,7 +5,7 @@ import Sidebar from './components/Sidebar';
 import LoginModal from './components/LoginModal';
 import { HomePage, CoursesPage, TrainersPage, AboutPage } from './pages/PublicPages';
 import CourseDetailPage from './pages/CourseDetailPage';
-import { StudentDashboard, MyCoursesPage, QuizPage, CertificatesPage, NotificationsPage } from './pages/StudentPages';
+import { StudentDashboard, MyCoursesPage, QuizPage, CertificatesPage, NotificationsPage, StudentLiveClassesPage } from './pages/StudentPages';
 import {
   TrainerDashboard, TrainerContentPage, AttendancePage, CreateQuizPage,
   ScheduleLiveClassPage, AssignmentManagerPage, TrainerNotificationsPage,
@@ -27,6 +27,7 @@ function renderPage(page, state, actions) {
     'student-quiz':          <QuizPage quizAnswers={quizAnswers} answerQuiz={answerQuiz} navigate={navigate} />,
     'student-certificates':  <CertificatesPage userName={userName} />,
     'student-notifications': <NotificationsPage />,
+    'student-live':           <StudentLiveClassesPage />,
     'trainer-dashboard':     <TrainerDashboard userName={userName} navigate={navigate} />,
     'trainer-content':       <TrainerContentPage activeTab={activeTab} setTab={setTab} />,
     'trainer-attendance':    <AttendancePage />,
@@ -40,7 +41,8 @@ function renderPage(page, state, actions) {
     'admin-trainers':        <TrainerManagementPage />,
     'admin-analytics':       <AnalyticsPage />,
     'admin-settings':        <SettingsPage />,
-    'admin-notifications':   <NotificationModule />  };
+    'admin-notifications':   <NotificationModule />  
+  };
 
   return map[page] ?? map['home'];
 }

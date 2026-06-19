@@ -1,7 +1,7 @@
 const sidebarConfig = {
   student: [
     { icon: '📊', label: 'Dashboard', page: 'student-dashboard' },
-    { icon: '🔴', label: 'Live Class',          page: '' },
+    { icon: '🔴', label: 'Live Class',          page: 'student-live' },
     { icon: '📚', label: 'My Courses', page: 'student-mycourses' },
     { icon: '▶️', label: 'Continue Learning', page: 'courseDetail' },
     { icon: '✏️', label: 'Assignments', page: 'student-mycourses' },
