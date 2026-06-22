@@ -1861,7 +1861,7 @@ export function TrainerNotificationsPage() {
 // 7. SCHEDULE LIVE CLASS PAGE
 // ════════════════════════════════════════════════════════════════════════════
 export function ScheduleLiveClassPage({ navigate }) {
-  const COURSES   = ['Full Stack Web Development', 'Python with AI', 'Advanced React'];
+  const COURSES   = ['Full Stack Web Development', 'Data science and Machine learning', 'UI/UX Master class', 'Devops And Cloud Engineering', 'Python with AI', 'React Native Mobile dev', 'Ai and Deep learning'];
   const PLATFORMS = ['Zoom', 'Google Meet', 'Microsoft Teams', 'Jitsi Meet', 'Custom Link'];
 
   const STATUS_META = {
@@ -1877,8 +1877,6 @@ export function ScheduleLiveClassPage({ navigate }) {
   const todayStr   = `${initNow.getFullYear()}-${pad(initNow.getMonth() + 1)}-${pad(initNow.getDate())}`;
   const defaultTime= `${pad(initNow.getHours() + 1)}:00`;
 
-  const STORAGE_KEY = 'trainer_live_classes';
-
   // tick forces re-render every 30 s so statuses stay current without a page refresh
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -1886,20 +1884,28 @@ export function ScheduleLiveClassPage({ navigate }) {
     return () => clearInterval(id);
   }, []);
 
-  const [classes,      setClasses]      = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // ── DB-backed state ────────────────────────────────────────────────────────
+  const [classes,      setClasses]      = useState([]);
+  const [loadingList,  setLoadingList]  = useState(true);
+  const [listError,    setListError]    = useState(null);
 
-  useEffect(() => {
+  // Fetch all live classes from the backend on mount and after mutations
+  const fetchClasses = useCallback(async () => {
+    setLoadingList(true);
+    setListError(null);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(classes));
-    } catch {}
-  }, [classes]);
+      const res = await fetch(`${API}/live-classes`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load classes');
+      setClasses(json.data || []);
+    } catch (e) {
+      setListError(e.message);
+    } finally {
+      setLoadingList(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchClasses(); }, [fetchClasses]);
 
   const [activeTab,    setActiveTab]    = useState(0);
   const [filterStat,   setFilterStat]   = useState('all');
@@ -1910,6 +1916,7 @@ export function ScheduleLiveClassPage({ navigate }) {
   const [editTarget,   setEditTarget]   = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [detailTarget, setDetailTarget] = useState(null);
+  const [actionError,  setActionError]  = useState(null);
 
   // ── Form fields ────────────────────────────────────────────────────────────
   const [fTitle,       setFTitle]       = useState('');
@@ -1937,6 +1944,7 @@ export function ScheduleLiveClassPage({ navigate }) {
     setFRecurring(false); setFRecurType('weekly'); setFRecurCount('4');
     setFNotifyApp(true); setFNotifyEmail(true); setFNotifySMS(false);
     setEditTarget(null);
+    setActionError(null);
   };
 
   const fillForm = (cls) => {
@@ -1950,10 +1958,11 @@ export function ScheduleLiveClassPage({ navigate }) {
   };
 
   const handleSchedule = async () => {
-    if (!fTitle.trim())   { alert('Enter a class title.');         return; }
-    if (!fDate || !fTime) { alert('Select a date and time.');      return; }
-    if (!fLink.trim())    { alert('Enter a meeting link / URL.');  return; }
+    if (!fTitle.trim())   { setActionError('Enter a class title.');        return; }
+    if (!fDate || !fTime) { setActionError('Select a date and time.');     return; }
+    if (!fLink.trim())    { setActionError('Enter a meeting link / URL.'); return; }
     setScheduling(true);
+    setActionError(null);
 
     const payload = {
       title: fTitle, course: fCourse, date: fDate, time: fTime,
@@ -1964,27 +1973,14 @@ export function ScheduleLiveClassPage({ navigate }) {
     };
 
     try {
-      await fetch(`${API}/live-classes`, {
-        method: editTarget ? 'PUT' : 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ ...payload, id: editTarget?.id }),
-      });
-    } catch { await new Promise((r) => setTimeout(r, 600)); }
-
-    if (editTarget) {
-      setClasses((prev) => prev.map((c) =>
-        c.id === editTarget.id
-          ? { ...c, title: fTitle, course: fCourse, date: fDate, time: fTime, duration: Number(fDuration), platform: fPlatform, link: fLink, description: fDesc, manuallyEnded: false }
-          : c
-      ));
-    } else {
-      setClasses((prev) => [{
-        id: `lc-${Date.now()}`, title: fTitle, course: fCourse,
-        date: fDate, time: fTime, duration: Number(fDuration),
-        platform: fPlatform, link: fLink, host: 'Pandeeswaran',
-        enrolled: ENROLL_MAP[fCourse] || 0, joined: 0,
-        status: 'scheduled', description: fDesc,
-      }, ...prev]);
+      const url    = editTarget ? `${API}/live-classes/${editTarget.id}` : `${API}/live-classes`;
+      const method = editTarget ? 'PUT' : 'POST';
+      const res    = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(payload) });
+      const json   = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Request failed');
+      await fetchClasses();
+    } catch (e) {
+      setActionError(e.message);
     }
 
     setScheduling(false); setScheduled(true); resetForm();
@@ -1992,22 +1988,39 @@ export function ScheduleLiveClassPage({ navigate }) {
   };
 
   const handleCancelClass = async () => {
-    try { await fetch(`${API}/live-classes/${cancelTarget.id}/cancel`, { method: 'PUT', headers: authHeaders() }); } catch {}
-    setClasses((prev) => prev.map((c) => c.id === cancelTarget.id ? { ...c, status: 'cancelled' } : c));
+    try {
+      const res  = await fetch(`${API}/live-classes/${cancelTarget.id}/cancel`, { method: 'PUT', headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Cancel failed');
+      await fetchClasses();
+    } catch (e) {
+      setActionError(e.message);
+    }
     setCancelTarget(null);
   };
 
   const handleMarkComplete = async (id) => {
-    try { await fetch(`${API}/live-classes/${id}/complete`, { method: 'PUT', headers: authHeaders() }); } catch {}
-    // manuallyEnded prevents computedClasses from re-overriding back to 'live'
-    setClasses((prev) => prev.map((c) => c.id === id ? { ...c, status: 'completed', manuallyEnded: true } : c));
+    try {
+      const res  = await fetch(`${API}/live-classes/${id}/complete`, { method: 'PUT', headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Complete failed');
+      await fetchClasses();
+    } catch (e) {
+      setActionError(e.message);
+    }
   };
 
-  const handleDeleteClass = (id) => {
+  const handleDeleteClass = async (id) => {
     if (!window.confirm('Delete this class permanently?')) return;
-    setClasses((prev) => prev.filter((c) => c.id !== id));
+    try {
+      const res  = await fetch(`${API}/live-classes/${id}`, { method: 'DELETE', headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Delete failed');
+      await fetchClasses();
+    } catch (e) {
+      setActionError(e.message);
+    }
   };
-
 
   // Recomputed on every render, which is triggered every 30 s by the tick
   // interval above. Cancelled/manually-ended classes are never auto-overridden;
@@ -2015,7 +2028,7 @@ export function ScheduleLiveClassPage({ navigate }) {
   const computedClasses = classes.map((c) => {
     void tick; // depend on tick so React re-runs this on every interval fire
     // Never auto-override cancelled or manually-ended classes
-    if (c.status === 'cancelled' || c.manuallyEnded) return c;
+    if (c.status === 'cancelled' || c.manually_ended) return c;
     try {
       const nowTs = getNow();
       const start = new Date(`${c.date}T${c.time}`);
@@ -2038,7 +2051,7 @@ export function ScheduleLiveClassPage({ navigate }) {
   const liveCount      = computedClasses.filter((c) => c.status === 'live').length;
   const scheduledCount = computedClasses.filter((c) => c.status === 'scheduled').length;
   const completedCount = computedClasses.filter((c) => c.status === 'completed').length;
-  const totalEnrolled  = computedClasses.reduce((s, c) => s + c.enrolled, 0);
+  const totalEnrolled  = computedClasses.reduce((s, c) => s + (c.enrolled || 0), 0);
 
   const StatusBadge = ({ status }) => {
     const m = STATUS_META[status] || STATUS_META.scheduled;
@@ -2059,6 +2072,14 @@ export function ScheduleLiveClassPage({ navigate }) {
         <div className="page-title">Live Classes</div>
         <div className="page-sub">Schedule, manage and track your live teaching sessions</div>
       </div>
+
+      {/* Action error banner */}
+      {actionError && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+          ⚠️ {actionError}
+          <button onClick={() => setActionError(null)} style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c', fontWeight: 700 }}>✕</button>
+        </div>
+      )}
 
       {/* ── Metrics ── */}
       <div className="grid-4" style={{ marginBottom: 20 }}>
@@ -2355,7 +2376,19 @@ export function ScheduleLiveClassPage({ navigate }) {
       {/* ══════════════════ TAB 1 – ALL CLASSES ══════════════════ */}
       {activeTab === 1 && (
         <>
+          {loadingList && (
+            <div className="card" style={{ textAlign: 'center', padding: 24, color: 'var(--sa-muted)' }}>
+              ⏳ Loading classes…
+            </div>
+          )}
+          {listError && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+              ⚠️ {listError} — <button onClick={fetchClasses} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c', textDecoration: 'underline' }}>Retry</button>
+            </div>
+          )}
+
           {/* Filters */}
+          {!loadingList && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[
@@ -2397,9 +2430,10 @@ export function ScheduleLiveClassPage({ navigate }) {
               onChange={(e) => setSearchQ(e.target.value)}
             />
           </div>
+          )}
 
           {/* Class Cards */}
-          {filtered.length === 0 ? (
+          {!loadingList && (filtered.length === 0 ? (
             <div className="card" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--sa-muted)' }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>📅</div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>No classes found</div>
@@ -2510,7 +2544,7 @@ export function ScheduleLiveClassPage({ navigate }) {
                 </div>
               ))}
             </div>
-          )}
+          ))}
         </>
       )}
 
