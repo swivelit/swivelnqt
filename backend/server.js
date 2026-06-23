@@ -17,6 +17,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/live-classes', require('./routes/liveClassRoutes'));
 
 // Health check
 app.get('/', (req, res) => {
