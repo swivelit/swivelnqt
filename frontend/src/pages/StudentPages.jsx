@@ -170,13 +170,9 @@ export function CertificatesPage({ userName }) {
 
 // ════════════════════════════════════════════════════════════════════════════
 // LIVE CLASSES PAGE (Student view)
-// Reads the same `trainer_live_classes` localStorage key that the trainer's
-// "Schedule Live Class" page writes to. Whatever the trainer schedules,
-// edits, or cancels there shows up here automatically — filtered down to
-// only the courses this student is enrolled in.
+// Fetches live classes from the backend. The API automatically filters
+// to only classes for courses this student is enrolled in.
 // ════════════════════════════════════════════════════════════════════════════
-const LIVE_CLASSES_STORAGE_KEY = 'trainer_live_classes';
-
 const LIVE_STATUS_META = {
   scheduled: { label: 'Scheduled',   bg: '#E6F1FB', color: '#0C447C' },
   live:      { label: '🔴 Live Now', bg: '#DCFCE7', color: '#14532D' },
@@ -186,20 +182,11 @@ const LIVE_STATUS_META = {
 
 const LIVE_PLATFORM_EMOJI = { 'Zoom': '📹', 'Google Meet': '📅', 'Microsoft Teams': '🟦', 'Jitsi Meet': '🔗', 'Custom Link': '🔗' };
 
-function readLiveClasses() {
-  try {
-    const saved = localStorage.getItem(LIVE_CLASSES_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch {
-    return [];
-  }
-}
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
 
-// Recompute each class's status from the current wall-clock time, exactly
-// like the trainer page does — so "live" / "completed" never drift out of
-// sync between the two views. Cancelled / manually-ended classes are left as-is.
+// Recompute status from wall-clock time so live/scheduled/completed stay accurate.
 function computeLiveStatus(cls) {
-  if (cls.status === 'cancelled' || cls.manuallyEnded) return cls;
+  if (cls.status === 'cancelled' || cls.manually_ended) return cls;
   try {
     const now   = new Date();
     const start = new Date(`${cls.date}T${cls.time}`);
@@ -211,34 +198,41 @@ function computeLiveStatus(cls) {
   }
 }
 
-function useLiveClasses() {
-  const [classes, setClasses] = useState(() => readLiveClasses());
+function useStudentLiveClasses() {
+  const [classes,  setClasses]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
 
-  const refresh = useCallback(() => setClasses(readLiveClasses()), []);
+  const fetch_ = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = localStorage.getItem('token') ?? '';
+      const res   = await fetch(`${API_BASE}/live-classes`, {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load');
+      setClasses(json.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // Pick up changes made by the trainer in another tab/window
-    const onStorage = (e) => { if (e.key === LIVE_CLASSES_STORAGE_KEY) refresh(); };
-    window.addEventListener('storage', onStorage);
+    fetch_();
+    // Re-fetch every 30 s so status changes propagate without a page reload
+    const poll = setInterval(fetch_, 30_000);
+    return () => clearInterval(poll);
+  }, [fetch_]);
 
-    // Pick up changes made in the same tab (e.g. a demo trainer view),
-    // and re-derive scheduled → live → completed as time passes.
-    const poll = setInterval(refresh, 15_000);
-
-    return () => { window.removeEventListener('storage', onStorage); clearInterval(poll); };
-  }, [refresh]);
-
-  return classes.map(computeLiveStatus);
+  return { classes: classes.map(computeLiveStatus), loading, error, refetch: fetch_ };
 }
 
-export function StudentLiveClassesPage({ studentCourses }) {
-  const allClasses = useLiveClasses();
-
-  // Only show classes for courses this student is actually enrolled in.
-  // `courses` entries carry a `title`; trainer-side classes store the
-  // course as that same title string.
-  const enrolledTitles = new Set((studentCourses ?? courses).map((c) => c.title));
-  const myClasses = allClasses.filter((c) => enrolledTitles.has(c.course));
+export function StudentLiveClassesPage() {
+  const { classes: myClasses, loading, error, refetch } = useStudentLiveClasses();
 
   const [filterStat, setFilterStat] = useState('all');
 
@@ -247,7 +241,7 @@ export function StudentLiveClassesPage({ studentCourses }) {
   const liveCount      = myClasses.filter((c) => c.status === 'live').length;
   const scheduledCount = myClasses.filter((c) => c.status === 'scheduled').length;
   const completedCount = myClasses.filter((c) => c.status === 'completed').length;
-  const cancelledCount = myClasses.filter((c) => c.status === 'cancelled').length;
+  const uniqueCourses  = new Set(myClasses.map((c) => c.course)).size;
 
   const StatusBadge = ({ status }) => {
     const m = LIVE_STATUS_META[status] || LIVE_STATUS_META.scheduled;
@@ -265,133 +259,147 @@ export function StudentLiveClassesPage({ studentCourses }) {
         <div className="page-sub">Sessions scheduled by your trainers for your enrolled courses</div>
       </div>
 
-      <div className="grid-4" style={{ marginBottom: 20 }}>
-        {[
-          ['🔴 Live Now',  liveCount,      liveCount > 0 ? 'join now' : 'none running'],
-          ['📅 Scheduled', scheduledCount, 'upcoming'],
-          ['✅ Completed', completedCount, ''],
-          ['📚 Courses',   enrolledTitles.size, 'enrolled'],
-        ].map(([label, val, sub]) => (
-          <div className="metric-card" key={label}>
-            <div className="metric-label">{label}</div>
-            <div className="metric-value">{val}</div>
-            {sub && <div className="metric-sub">{sub}</div>}
-          </div>
-        ))}
-      </div>
+      {loading && (
+        <div className="card" style={{ textAlign: 'center', padding: 24, color: 'var(--sa-muted)' }}>⏳ Loading your live classes…</div>
+      )}
 
-      {liveCount > 0 && (
-        <div className="live-banner">
-          <span className="live-dot" />
-          <div style={{ flex: 1 }}>
-            <div className="live-banner-title">
-              {liveCount} Class{liveCount > 1 ? 'es' : ''} Live Right Now
-            </div>
-            <div className="live-banner-sub">
-              {myClasses.filter((c) => c.status === 'live').map((c) => c.title).join(' · ')}
-            </div>
-          </div>
-          <button className="action-btn" style={{ fontSize: 12, background: '#16a34a', color: '#fff', border: 'none' }} onClick={() => setFilterStat('live')}>
-            View Live →
-          </button>
+      {error && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+          ⚠️ {error} —{' '}
+          <button onClick={refetch} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c', textDecoration: 'underline' }}>Retry</button>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-        {[
-          ['all',       'All'],
-          ['live',      '🔴 Live'],
-          ['scheduled', 'Scheduled'],
-          ['completed', 'Completed'],
-          ['cancelled', 'Cancelled'],
-        ].map(([key, lbl]) => (
-          <button
-            key={key}
-            onClick={() => setFilterStat(key)}
-            style={{
-              fontSize: 12, padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
-              border: '0.5px solid var(--sa-border)',
-              background: filterStat === key ? 'var(--sa-teal)' : 'var(--sa-surface)',
-              color: filterStat === key ? '#fff' : 'var(--sa-text)',
-              fontWeight: filterStat === key ? 600 : 400,
-            }}
-          >
-            {lbl} ({myClasses.filter((c) => key === 'all' ? true : c.status === key).length})
-          </button>
-        ))}
-      </div>
+      {!loading && !error && (
+        <>
+          <div className="grid-4" style={{ marginBottom: 20 }}>
+            {[
+              ['🔴 Live Now',  liveCount,      liveCount > 0 ? 'join now' : 'none running'],
+              ['📅 Scheduled', scheduledCount, 'upcoming'],
+              ['✅ Completed', completedCount, ''],
+              ['📚 Courses',   uniqueCourses,  'enrolled'],
+            ].map(([label, val, sub]) => (
+              <div className="metric-card" key={label}>
+                <div className="metric-label">{label}</div>
+                <div className="metric-value">{val}</div>
+                {sub && <div className="metric-sub">{sub}</div>}
+              </div>
+            ))}
+          </div>
 
-      {filtered.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--sa-muted)' }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>📅</div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>No live classes found</div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>Your trainer hasn't scheduled any sessions matching this filter yet.</div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {filtered.map((cls) => (
-            <div
-              key={cls.id}
-              className="live-class-card"
-              style={{ borderLeft: cls.status === 'live' ? '4px solid #16a34a' : cls.status === 'cancelled' ? '4px solid #dc2626' : '4px solid var(--sa-teal)' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
-                <div style={{
-                  width: 46, height: 46, borderRadius: 12, flexShrink: 0,
-                  background: cls.status === 'live' ? '#DCFCE7' : 'var(--sa-surface)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-                  border: `1px solid ${cls.status === 'live' ? '#86efac' : 'var(--sa-border)'}`,
-                }}>
-                  {LIVE_PLATFORM_EMOJI[cls.platform] || '🔗'}
+          {liveCount > 0 && (
+            <div className="live-banner">
+              <span className="live-dot" />
+              <div style={{ flex: 1 }}>
+                <div className="live-banner-title">
+                  {liveCount} Class{liveCount > 1 ? 'es' : ''} Live Right Now
                 </div>
-
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 5 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{cls.title}</span>
-                    <StatusBadge status={cls.status} />
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginBottom: 8 }}>{cls.course}</div>
-                  <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--sa-muted)', flexWrap: 'wrap' }}>
-                    <span>📅 {cls.date}</span>
-                    <span>⏰ {cls.time} IST</span>
-                    <span>⏱️ {cls.duration} min</span>
-                    <span>💻 {cls.platform}</span>
-                    <span>👤 {cls.host}</span>
-                  </div>
-                  {cls.description && (
-                    <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginTop: 6, lineHeight: 1.5 }}>{cls.description}</div>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
-                  {cls.status === 'live' && (
-                    <a
-                      href={cls.link} target="_blank" rel="noreferrer"
-                      className="action-btn"
-                      style={{ fontSize: 12, background: '#16a34a', color: '#fff', border: 'none', textDecoration: 'none', textAlign: 'center' }}
-                    >
-                      🔴 Join Now
-                    </a>
-                  )}
-                  {cls.status === 'scheduled' && (
-                    <a
-                      href={cls.link} target="_blank" rel="noreferrer"
-                      className="action-btn"
-                      style={{ fontSize: 12, textDecoration: 'none', textAlign: 'center' }}
-                    >
-                      🔗 Open Link
-                    </a>
-                  )}
-                  {cls.status === 'completed' && (
-                    <span style={{ fontSize: 11, color: 'var(--sa-muted)', textAlign: 'center' }}>Session ended</span>
-                  )}
+                <div className="live-banner-sub">
+                  {myClasses.filter((c) => c.status === 'live').map((c) => c.title).join(' · ')}
                 </div>
               </div>
+              <button className="action-btn" style={{ fontSize: 12, background: '#16a34a', color: '#fff', border: 'none' }} onClick={() => setFilterStat('live')}>
+                View Live →
+              </button>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+            {[
+              ['all',       'All'],
+              ['live',      '🔴 Live'],
+              ['scheduled', 'Scheduled'],
+              ['completed', 'Completed'],
+              ['cancelled', 'Cancelled'],
+            ].map(([key, lbl]) => (
+              <button
+                key={key}
+                onClick={() => setFilterStat(key)}
+                style={{
+                  fontSize: 12, padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+                  border: '0.5px solid var(--sa-border)',
+                  background: filterStat === key ? 'var(--sa-teal)' : 'var(--sa-surface)',
+                  color: filterStat === key ? '#fff' : 'var(--sa-text)',
+                  fontWeight: filterStat === key ? 600 : 400,
+                }}
+              >
+                {lbl} ({myClasses.filter((c) => key === 'all' ? true : c.status === key).length})
+              </button>
+            ))}
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--sa-muted)' }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>📅</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>No live classes found</div>
+              <div style={{ fontSize: 12, marginTop: 6 }}>Your trainer hasn't scheduled any sessions matching this filter yet.</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {filtered.map((cls) => (
+                <div
+                  key={cls.id}
+                  className="live-class-card"
+                  style={{ borderLeft: cls.status === 'live' ? '4px solid #16a34a' : cls.status === 'cancelled' ? '4px solid #dc2626' : '4px solid var(--sa-teal)' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
+                    <div style={{
+                      width: 46, height: 46, borderRadius: 12, flexShrink: 0,
+                      background: cls.status === 'live' ? '#DCFCE7' : 'var(--sa-surface)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                      border: `1px solid ${cls.status === 'live' ? '#86efac' : 'var(--sa-border)'}`,
+                    }}>
+                      {LIVE_PLATFORM_EMOJI[cls.platform] || '🔗'}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 5 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>{cls.title}</span>
+                        <StatusBadge status={cls.status} />
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginBottom: 8 }}>{cls.course}</div>
+                      <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--sa-muted)', flexWrap: 'wrap' }}>
+                        <span>📅 {cls.date}</span>
+                        <span>⏰ {cls.time} IST</span>
+                        <span>⏱️ {cls.duration} min</span>
+                        <span>💻 {cls.platform}</span>
+                        <span>👤 {cls.host}</span>
+                      </div>
+                      {cls.description && (
+                        <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginTop: 6, lineHeight: 1.5 }}>{cls.description}</div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                      {cls.status === 'live' && (
+                        <a
+                          href={cls.link} target="_blank" rel="noreferrer"
+                          className="action-btn"
+                          style={{ fontSize: 12, background: '#16a34a', color: '#fff', border: 'none', textDecoration: 'none', textAlign: 'center' }}
+                        >
+                          🔴 Join Now
+                        </a>
+                      )}
+                      {cls.status === 'scheduled' && (
+                        <a
+                          href={cls.link} target="_blank" rel="noreferrer"
+                          className="action-btn"
+                          style={{ fontSize: 12, textDecoration: 'none', textAlign: 'center' }}
+                        >
+                          🔗 Open Link
+                        </a>
+                      )}
+                      {cls.status === 'completed' && (
+                        <span style={{ fontSize: 11, color: 'var(--sa-muted)', textAlign: 'center' }}>Session ended</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
