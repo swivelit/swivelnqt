@@ -219,8 +219,6 @@ export default function LoginModal({ onLogin, onClose }) {
                   boxShadow: "0 4px 12px rgba(99,102,241,0.15)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#6366f1";
-                  e.currentTarget.style.color = "#ffffff";
                   e.currentTarget.style.transform =
                     "translateY(-50%) scale(1.08)";
                 }}
