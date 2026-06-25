@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { loginDefs } from '../data/data';
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+
 const roleIcons = {
   student: '🎓',
   trainer: '📝',
@@ -44,7 +46,7 @@ export default function LoginModal({ onLogin, onClose }) {
     if (!validateForm()) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
