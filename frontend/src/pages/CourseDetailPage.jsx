@@ -44,8 +44,7 @@ export default function CourseDetailPage({ courseView, role, onBack, onShowLogin
 
         <div>
           <div className="card">
-            <div style={{ fontSize: 22, fontWeight: 500, color: 'var(--sa-text)', marginBottom: 4 }}>{c.price}</div>
-            <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginBottom: 14 }}>One-time enrollment</div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--sa-text)', marginBottom: 14 }}>Full course access</div>
             <button
               className="action-btn accent"
               style={{ width: '100%', justifyContent: 'center', padding: 10, marginBottom: 8 }}

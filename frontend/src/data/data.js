@@ -1,10 +1,12 @@
 export const courses = [
-  { id: 1, title: 'Full Stack Web Development', trainer: 'Pandeeswaran', price: '₹12,999', rating: 4.8, students: 1240, thumb: 'web', tag: 'Bestseller', progress: 72, lessons: 42, free: 6, category: 'Web Dev' },
-  { id: 2, title: 'Data Science & Machine Learning', trainer: 'Antony', price: '₹14,999', rating: 4.9, students: 890, thumb: 'data', tag: 'New', progress: 0, lessons: 56, free: 8, category: 'Data Science' },
-  { id: 3, title: 'UI/UX Design Masterclass', trainer: 'Ajith', price: '₹8,999', rating: 4.7, students: 675, thumb: 'design', tag: 'Hot', progress: 45, lessons: 38, free: 5, category: 'Design' },
-  { id: 4, title: 'DevOps & Cloud Engineering', trainer: 'Sridhar', price: '₹16,999', rating: 4.6, students: 420, thumb: 'devops', tag: '', progress: 0, lessons: 48, free: 4, category: 'DevOps' },
-  { id: 5, title: 'React Native Mobile Dev', trainer: 'Yokesh', price: '₹11,499', rating: 4.7, students: 310, thumb: 'mobile', tag: '', progress: 20, lessons: 36, free: 5, category: 'Mobile' },
-  { id: 6, title: 'AI & Deep Learning', trainer: 'Hari', price: '₹18,999', rating: 4.9, students: 520, thumb: 'ai', tag: 'Premium', progress: 0, lessons: 60, free: 6, category: 'AI/ML' },
+  { id: 1, title: 'Full Stack Web Development', trainer: 'Pandeeswaran', rating: 4.8, students: 1240, thumb: 'web', tag: 'Bestseller', progress: 72, lessons: 42, free: 6, category: 'Web Dev' },
+  { id: 2, title: 'Data Science & Machine Learning', trainer: 'Antony', rating: 4.9, students: 890, thumb: 'data', tag: 'New', progress: 0, lessons: 56, free: 8, category: 'Data Science' },
+  { id: 3, title: 'UI/UX Design Masterclass', trainer: 'Ajith', rating: 4.7, students: 675, thumb: 'design', tag: 'Hot', progress: 45, lessons: 38, free: 5, category: 'Design' },
+  { id: 4, title: 'DevOps & Cloud Engineering', trainer: 'Sridhar', rating: 4.6, students: 420, thumb: 'devops', tag: '', progress: 0, lessons: 48, free: 4, category: 'DevOps' },
+  { id: 5, title: 'React Native Mobile Dev', trainer: 'Yokesh', rating: 4.7, students: 310, thumb: 'mobile', tag: '', progress: 20, lessons: 36, free: 5, category: 'Mobile' },
+  { id: 6, title: 'AI & Deep Learning', trainer: 'Hari', rating: 4.9, students: 520, thumb: 'ai', tag: 'Premium', progress: 0, lessons: 60, free: 6, category: 'AI/ML' },
+  { id: 7, title: 'Digital Marketing with AI', trainer: 'Hari', rating: 4.9, students: 520, thumb: 'digital', tag: 'Premium', progress: 0, lessons: 60, free: 6, category: 'AI/ML' },
+  { id: 8, title: 'Technical Support', trainer: 'Hari', rating: 4.9, students: 520, thumb: 'tech', tag: 'Premium', progress: 0, lessons: 60, free: 6, category: 'IT Support' },
 ];
 
 export const lessonList = [
@@ -33,7 +35,7 @@ export const notifs = [
   { title: 'Certificate ready', sub: 'UI Fundamentals certificate is ready', time: '2d ago', color: '#185fa5', unread: false },
 ];
 
-export const thumbEmoji = { web: '💻', data: '📊', design: '🎨', devops: '☁️', mobile: '📱', ai: '🤖' };
+export const thumbEmoji = { web: '💻', data: '📊', design: '🎨', devops: '☁️', mobile: '📱', ai: '🤖', digital: '📈', tech: '🛠️' };
 
 export const loginDefs = {
   student: { name: 'Bastin', badge: 'role-student', label: 'Student' },
