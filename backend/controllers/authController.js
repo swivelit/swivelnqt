@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const Admin = require('../models/Admin');
+const Student = require('../models/Student');
+const Trainer = require('../models/Trainer');
 
 const isDev = process.env.NODE_ENV !== 'production';
+
+const MODEL_BY_ROLE = { admin: Admin, student: Student, trainer: Trainer };
 
 // Generate JWT
 const generateToken = (id, role) => {
@@ -33,30 +37,24 @@ const login = async (req, res) => {
       });
     }
 
-    // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    // Look the email up directly in the table for the selected role — this
+    // also means selecting the wrong role for a real account correctly
+    // reports "no user found" rather than leaking that the email exists
+    // under a different role.
+    const Model = MODEL_BY_ROLE[role];
+    const account = await Model.findOne({ email: email.toLowerCase().trim() });
 
-    if (!user) {
+    if (!account) {
       return res.status(401).json({
         success: false,
         message: isDev
-          ? `No user found with email: ${email}. Run "node seed.js" to create demo users.`
-          : 'Invalid credentials',
-      });
-    }
-
-    // Check role matches
-    if (user.role !== role) {
-      return res.status(401).json({
-        success: false,
-        message: isDev
-          ? `Role mismatch: user "${email}" has role "${user.role}" but you selected "${role}"`
+          ? `No ${role} account found with email: ${email}.`
           : 'Invalid credentials',
       });
     }
 
     // Check account active
-    if (!user.is_active) {
+    if (!account.is_active) {
       return res.status(403).json({
         success: false,
         message: 'Your account has been deactivated',
@@ -64,26 +62,26 @@ const login = async (req, res) => {
     }
 
     // Check password
-    const isMatch = await User.matchPassword(password, user.password);
+    const isMatch = await Model.matchPassword(password, account.password);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
         message: isDev
-          ? 'Password does not match. Check your password or re-run "node seed.js".'
+          ? 'Password does not match.'
           : 'Invalid credentials',
       });
     }
 
-    const token = generateToken(user.id, user.role);
+    const token = generateToken(account.id, role);
 
     res.status(200).json({
       success: true,
       token,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
+        id: account.id,
+        name: account.name,
+        email: account.email,
+        role,
       },
     });
   } catch (error) {
@@ -97,17 +95,16 @@ const login = async (req, res) => {
 // @access  Private
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-    res.status(200).json({ success: true, user });
+    // req.user was already populated by the `protect` middleware (which
+    // knows the role from the JWT), so we already have everything needed.
+    res.status(200).json({ success: true, user: req.user });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// @desc    Dev helper — list all users (emails + roles, no passwords)
+// @desc    Dev helper — list every account across all three tables
+//          (emails + roles, no passwords)
 // @route   GET /api/auth/debug-users
 // @access  Dev only
 const debugUsers = async (req, res) => {
@@ -115,11 +112,17 @@ const debugUsers = async (req, res) => {
     return res.status(404).json({ message: 'Not found' });
   }
   try {
-    const users = await User.find();
-    res.json({
-      count: users.length,
-      users: users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, is_active: u.is_active })),
-    });
+    const [admins, students, trainers] = await Promise.all([
+      Admin.find(),
+      Student.find(),
+      Trainer.find(),
+    ]);
+    const users = [
+      ...admins.map((u) => ({ ...u, role: 'admin' })),
+      ...students.map((u) => ({ ...u, role: 'student' })),
+      ...trainers.map((u) => ({ ...u, role: 'trainer' })),
+    ];
+    res.json({ count: users.length, users });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
