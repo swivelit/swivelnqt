@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const Account = require('../models/Account');
 
-// Protect routes — verify JWT
+// Protect routes — verify JWT, then look the person up in whichever table
+// matches the role encoded in the token (admins / students / trainers).
 const protect = async (req, res, next) => {
   let token;
 
@@ -18,7 +19,7 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id);
+    req.user = await Account.findByIdAndRole(decoded.id, decoded.role);
 
     if (!req.user) {
       return res.status(401).json({ success: false, message: 'User no longer exists' });
