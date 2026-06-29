@@ -85,43 +85,307 @@ export function MyCoursesPage({ activeTab, setTab, onOpenCourse }) {
   );
 }
 
-export function QuizPage({ quizAnswers, answerQuiz, navigate }) {
-  const question = {
-    q: 'Which hook is used for side effects in React?',
-    opts: ['useState', 'useEffect', 'useRef', 'useMemo'],
-    correct: 1,
+// ════════════════════════════════════════════════════════════════════════════
+// QUIZ PAGE (Student view) — fully wired to the backend.
+// Flow:
+//   1. List quizzes published for the student's enrolled courses
+//      (GET /api/quizzes — server already filters by enrollment + published)
+//   2. Student picks one → answer locally → Submit
+//   3. POST /api/quizzes/:id/submit scores it server-side and returns the
+//      attempt (score, percentage, passed)
+//   4. If already attempted, show the stored result instead of the form
+// ════════════════════════════════════════════════════════════════════════════
+const QUIZ_API = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+
+const quizAuthHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+});
+
+function useStudentQuizzes() {
+  const [quizzes, setQuizzes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+
+  const fetchQuizzes = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${QUIZ_API}/quizzes`, { headers: quizAuthHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load quizzes');
+      setQuizzes(json.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchQuizzes(); }, [fetchQuizzes]);
+
+  return { quizzes, loading, error, refetch: fetchQuizzes };
+}
+
+export function QuizPage() {
+  const { quizzes, loading, error, refetch } = useStudentQuizzes();
+
+  const [activeQuiz, setActiveQuiz] = useState(null); // quiz object being attempted
+  const [answers, setAnswers]       = useState({});   // { [questionIdx]: optionIdx }
+  const [qIndex, setQIndex]         = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [result, setResult]         = useState(null); // attempt returned by server after submit
+  const [secondsLeft, setSecondsLeft] = useState(null);
+
+  const startQuiz = (quiz) => {
+    setActiveQuiz(quiz);
+    setAnswers({});
+    setQIndex(0);
+    setResult(quiz.myAttempt || null);
+    setSecondsLeft((Number(quiz.time_limit_minutes) || 15) * 60);
   };
+
+  const backToList = () => {
+    setActiveQuiz(null);
+    setResult(null);
+    setSubmitError(null);
+    refetch();
+  };
+
+  const submitQuiz = useCallback(async () => {
+    if (!activeQuiz || submitting || result) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const questionCount = (activeQuiz.questions || []).length;
+      const answersArray = Array.from({ length: questionCount }, (_, i) => (i in answers ? answers[i] : null));
+      const res = await fetch(`${QUIZ_API}/quizzes/${activeQuiz.id}/submit`, {
+        method: 'POST',
+        headers: quizAuthHeaders(),
+        body: JSON.stringify({ answers: answersArray }),
+      });
+      const json = await res.json();
+
+      if (res.status === 403) {
+        // Almost always a stale/mismatched session — e.g. logged in as a
+        // different role earlier and the old token never got replaced.
+        throw new Error('Your session isn\u2019t recognized as a student account. Please log out and log back in as a student, then try again.');
+      }
+      if (!res.ok && res.status !== 409) throw new Error(json.message || 'Failed to submit quiz');
+      setResult(json.data);
+    } catch (e) {
+      setSubmitError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [activeQuiz, answers, submitting, result]);
+
+  // Countdown timer — auto-submits when time runs out
+  useEffect(() => {
+    if (!activeQuiz || result || secondsLeft === null) return;
+    if (secondsLeft <= 0) { submitQuiz(); return; }
+    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [activeQuiz, result, secondsLeft, submitQuiz]);
+
+  const fmtTime = (s) => {
+    if (s === null) return '—';
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  };
+
+  // ── List view ────────────────────────────────────────────────────────────
+  if (!activeQuiz) {
+    return (
+      <div>
+        <div className="page-header">
+          <div className="page-title">Quizzes</div>
+          <div className="page-sub">Quizzes your trainers have published for your enrolled courses</div>
+        </div>
+
+        {loading && (
+          <div className="card" style={{ textAlign: 'center', padding: 24, color: 'var(--sa-muted)' }}>⏳ Loading quizzes…</div>
+        )}
+
+        {error && (
+          <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+            ⚠️ {error} —{' '}
+            <button onClick={refetch} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b91c1c', textDecoration: 'underline' }}>Retry</button>
+          </div>
+        )}
+
+        {!loading && !error && quizzes.length === 0 && (
+          <div className="card" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--sa-muted)' }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>❓</div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>No quizzes yet</div>
+            <div style={{ fontSize: 12, marginTop: 6 }}>Your trainer hasn't published a quiz for your enrolled courses yet.</div>
+          </div>
+        )}
+
+        {!loading && !error && quizzes.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {quizzes.map((q) => {
+              const attempt = q.myAttempt;
+              const totalMarks = (q.questions || []).reduce((s, qq) => s + (Number(qq.marks) || 0), 0);
+              return (
+                <div key={q.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 10, flexShrink: 0, fontSize: 20,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: attempt ? (attempt.passed ? '#DCFCE7' : '#FEE2E2') : 'var(--sa-surface)',
+                    border: '1px solid var(--sa-border)',
+                  }}>
+                    {attempt ? (attempt.passed ? '✅' : '❌') : '❓'}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{q.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--sa-muted)', marginTop: 2 }}>{q.course}</div>
+                    <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--sa-muted)', flexWrap: 'wrap', marginTop: 6 }}>
+                      <span>❓ {(q.questions || []).length} questions</span>
+                      <span>🏆 {totalMarks} marks</span>
+                      <span>⏱️ {q.time_limit_minutes} min</span>
+                      <span>🎯 Pass {q.pass_mark}%</span>
+                    </div>
+                  </div>
+                  <div style={{ flexShrink: 0 }}>
+                    {attempt ? (
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: attempt.passed ? '#15803d' : '#b91c1c' }}>
+                          {attempt.score}/{attempt.total_marks} ({attempt.percentage}%)
+                        </div>
+                        <button className="action-btn" style={{ fontSize: 12, marginTop: 4 }} onClick={() => startQuiz(q)}>View Result</button>
+                      </div>
+                    ) : (
+                      <button className="action-btn accent" style={{ fontSize: 12 }} onClick={() => startQuiz(q)}>▶ Start Quiz</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Result view (already attempted, or just submitted) ────────────────
+  if (result) {
+    const questions = activeQuiz.questions || [];
+    return (
+      <div>
+        <div className="page-header">
+          <div className="page-title">{activeQuiz.title}</div>
+          <div className="page-sub">{activeQuiz.course}</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center', padding: 24 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>{result.passed ? '🎉' : '📋'}</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{result.score} / {result.total_marks} marks</div>
+          <div style={{ fontSize: 14, color: 'var(--sa-muted)', marginTop: 4 }}>{result.percentage}% · Pass mark {activeQuiz.pass_mark}%</div>
+          <div style={{ marginTop: 10 }}>
+            <span className={`status-pill ${result.passed ? 'status-active' : 'status-pending'}`}>
+              {result.passed ? '✅ Passed' : '❌ Did not pass'}
+            </span>
+          </div>
+        </div>
+
+        {Array.isArray(result.answers) && questions.length > 0 && questions[0]?.correct !== undefined && (
+          <div className="card" style={{ marginTop: 14 }}>
+            <div className="card-title">Review Answers</div>
+            {questions.map((q, i) => {
+              const given = result.answers[i];
+              const isCorrect = given !== null && given !== undefined && Number(given) === Number(q.correct);
+              return (
+                <div key={i} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < questions.length - 1 ? '1px solid var(--sa-border)' : 'none' }}>
+                  <div className="quiz-q" style={{ marginBottom: 8 }}>Q{i + 1}. {q.text}</div>
+                  {q.options.map((opt, oIdx) => {
+                    let cls = '';
+                    if (oIdx === q.correct) cls = 'selected';
+                    else if (oIdx === given) cls = 'wrong';
+                    return (
+                      <div key={oIdx} className={`quiz-option ${cls}`} style={{ cursor: 'default' }}>
+                        <div className={`radio-dot ${oIdx === given ? 'filled' : ''}`} />
+                        {opt}
+                        {oIdx === q.correct && <span style={{ marginLeft: 8, fontSize: 11, color: '#3B6D11' }}>✓ Correct answer</span>}
+                      </div>
+                    );
+                  })}
+                  <div style={{ fontSize: 11, color: isCorrect ? '#3B6D11' : '#b91c1c', marginTop: 4 }}>
+                    {isCorrect ? '✓ You got this right' : given === null || given === undefined ? '— Not answered' : '✗ Incorrect'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+          <button className="action-btn" onClick={backToList}>← Back to Quizzes</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Taking view ─────────────────────────────────────────────────────────
+  const questions = activeQuiz.questions || [];
+  const question  = questions[qIndex];
+  const progressPct = questions.length ? Math.round(((qIndex + 1) / questions.length) * 100) : 0;
+  const answeredCount = Object.keys(answers).length;
 
   return (
     <div>
       <div className="page-header">
-        <div className="page-title">Quiz: React Fundamentals</div>
-        <div className="page-sub">Question 1 of 8 · 15 min remaining</div>
+        <div className="page-title">Quiz: {activeQuiz.title}</div>
+        <div className="page-sub">Question {qIndex + 1} of {questions.length} · ⏱️ {fmtTime(secondsLeft)} remaining</div>
       </div>
+
+      {submitError && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+          ⚠️ {submitError}
+        </div>
+      )}
+
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div className="progress-bar" style={{ flex: 1, height: 6, marginRight: 12 }}>
-            <div className="progress-fill" style={{ width: '12%' }} />
+            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
           </div>
-          <span style={{ fontSize: 12, color: 'var(--sa-muted)' }}>1/8</span>
+          <span style={{ fontSize: 12, color: 'var(--sa-muted)' }}>{qIndex + 1}/{questions.length}</span>
         </div>
-        <div className="quiz-q">{question.q}</div>
-        {question.opts.map((opt, i) => {
-          const selected = quizAnswers[0] === i;
-          const cls = selected ? (i === question.correct ? 'selected' : 'wrong') : '';
-          return (
-            <div key={i} className={`quiz-option ${cls}`} onClick={() => answerQuiz(0, i)}>
-              <div className={`radio-dot ${selected ? 'filled' : ''}`} />
-              {opt}
-            </div>
-          );
-        })}
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button className="action-btn">← Previous</button>
-          <button className="action-btn accent" onClick={() => navigate('student-certificates')}>
-            Submit Answer →
-          </button>
+
+        {question && (
+          <>
+            <div className="quiz-q">{question.text}</div>
+            {question.options.map((opt, i) => {
+              const selected = answers[qIndex] === i;
+              return (
+                <div key={i} className={`quiz-option ${selected ? 'selected' : ''}`} onClick={() => setAnswers((a) => ({ ...a, [qIndex]: i }))}>
+                  <div className={`radio-dot ${selected ? 'filled' : ''}`} />
+                  {opt}
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <button className="action-btn" onClick={() => setQIndex((i) => Math.max(0, i - 1))} disabled={qIndex === 0}>← Previous</button>
+          <span style={{ fontSize: 11, color: 'var(--sa-muted)' }}>{answeredCount}/{questions.length} answered</span>
+          {qIndex < questions.length - 1 ? (
+            <button className="action-btn accent" onClick={() => setQIndex((i) => Math.min(questions.length - 1, i + 1))}>
+              Next →
+            </button>
+          ) : (
+            <button className="action-btn accent" onClick={submitQuiz} disabled={submitting}>
+              {submitting ? '⏳ Submitting…' : '✓ Submit Quiz'}
+            </button>
+          )}
         </div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <button className="action-btn" style={{ fontSize: 12 }} onClick={backToList}>← Exit without submitting</button>
       </div>
     </div>
   );

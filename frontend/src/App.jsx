@@ -16,15 +16,15 @@ import {
 } from './pages/TrainerPages';
 import {
   AdminDashboard, UserManagementPage, CourseManagementPage,
-  AnalyticsPage, SettingsPage, TrainerManagementPage, NotificationModule,
+  AnalyticsPage, SettingsPage, TrainerManagementPage,
 } from './pages/AdminPages';
 
 // ─── Page renderer ────────────────────────────────────────────────────────────
 // Wrapped in memo so React skips re-rendering it when Navbar/Sidebar-only
 // state changes. Only `page` (and its dependent props) triggers a content swap.
 const PageContent = memo(function PageContent({ page, state, actions }) {
-  const { role, userName, courseView, activeTab, activeFilter, quizAnswers } = state;
-  const { navigate, goPublic, openCourse, setFilter, setTab, setShowModal, answerQuiz, showLogin } = actions;
+  const { role, userName, courseView, activeTab, activeFilter } = state;
+  const { navigate, goPublic, openCourse, setFilter, setTab, setShowModal, showLogin } = actions;
 
   const map = {
     home:                    <HomePage onOpenCourse={openCourse} onShowLogin={showLogin} onGoCourses={() => goPublic('courses')} />,
@@ -34,7 +34,7 @@ const PageContent = memo(function PageContent({ page, state, actions }) {
     courseDetail:            <CourseDetailPage courseView={courseView} role={role} onBack={() => goPublic('courses')} onShowLogin={showLogin} onShowLockedModal={() => setShowModal(true)} />,
     'student-dashboard':     <StudentDashboard userName={userName} navigate={navigate} />,
     'student-mycourses':     <MyCoursesPage activeTab={activeTab} setTab={setTab} onOpenCourse={openCourse} />,
-    'student-quiz':          <QuizPage quizAnswers={quizAnswers} answerQuiz={answerQuiz} navigate={navigate} />,
+    'student-quiz':          <QuizPage />,
     'student-certificates':  <CertificatesPage userName={userName} />,
     'student-notifications': <NotificationsPage />,
     'student-live':          <StudentLiveClassesPage />,
@@ -51,7 +51,6 @@ const PageContent = memo(function PageContent({ page, state, actions }) {
     'admin-analytics':       <AnalyticsPage />,
     'admin-settings':        <SettingsPage />,
     'admin-trainers':        <TrainerManagementPage />,
-    'admin-notifications':   <NotificationModule />
   };
 
   return map[page] ?? map['home'];
@@ -64,10 +63,10 @@ const PageContent = memo(function PageContent({ page, state, actions }) {
 export default function App() {
   const {
     state, navigate, goPublic, login, logout, showLogin,
-    closeLoginModal, openCourse, setFilter, setTab, setShowModal, answerQuiz,
+    closeLoginModal, openCourse, setFilter, setTab, setShowModal,
   } = useAppState();
 
-  const actions = { navigate, goPublic, openCourse, setFilter, setTab, setShowModal, answerQuiz, showLogin };
+  const actions = { navigate, goPublic, openCourse, setFilter, setTab, setShowModal, showLogin };
 
   return (
     <div className="app">

@@ -52,7 +52,7 @@ export function HomePage({ onOpenCourse, onShowLogin, onGoCourses }) {
 }
 
 export function CoursesPage({ activeFilter, setFilter, onOpenCourse }) {
-  const filters = ['All', 'Web Dev', 'Data Science', 'Design', 'DevOps', 'Mobile', 'AI/ML'];
+  const filters = ['All', 'Web Dev', 'Data Science', 'Design', 'DevOps', 'Mobile', 'AI/ML', 'IT Support'];
   const filtered = activeFilter === 'All' ? courses : courses.filter((c) => c.category === activeFilter);
 
   return (

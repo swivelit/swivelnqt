@@ -36,6 +36,37 @@ function useAsync() {
   return { loading, error, success, run };
 }
 
+// Shared by every course dropdown in this file (quiz form, live-class
+// form) — fetches the live list of course titles from the backend
+// `courses` table, the same one the admin manages. This is what keeps a
+// trainer from ever scheduling a class or quiz for a course title that
+// doesn't actually match any student's enrollment record.
+function useCourseTitles() {
+  const [titles, setTitles] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API}/courses/titles`, { headers: authHeaders() });
+        const json = await res.json();
+        if (!cancelled && res.ok) setTitles(json.titles || []);
+      } catch {
+        // If this fails, the dropdown just stays empty rather than falling
+        // back to a possibly-mismatched hardcoded list — better to show
+        // nothing than to silently offer a course name that won't match
+        // any student's enrollment.
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { courseTitles: titles, loadingCourseTitles: loading };
+}
+
 // ─── Status Banner ────────────────────────────────────────────────────────────
 function StatusBanner({ error, success }) {
   if (!error && !success) return null;
@@ -1089,22 +1120,59 @@ export function AttendancePage() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 4. CREATE QUIZ PAGE
+// 4. CREATE QUIZ PAGE — fully wired to the backend.
+//    - Lists existing quizzes for the trainer (GET /api/quizzes)
+//    - Publishes new quizzes (POST /api/quizzes), which immediately become
+//      visible to students enrolled in the selected course
+//    - Lets the trainer delete a quiz (DELETE /api/quizzes/:id)
+//    - Lets the trainer view submitted results (GET /api/quizzes/:id/results)
 // ════════════════════════════════════════════════════════════════════════════
 export function CreateQuizPage() {
-  const COURSES = ['Full Stack Web Development', 'Python with AI', 'Advanced React'];
+  const { courseTitles: COURSES, loadingCourseTitles } = useCourseTitles();
 
   const blankQuestion = () => ({ id: Date.now() + Math.random(), text: '', options: ['', '', '', ''], correct: 0, marks: 1 });
 
   const [quizTitle,    setQuizTitle]    = useState('');
-  const [course,       setCourse]       = useState('Full Stack Web Development');
+  const [course,       setCourse]       = useState('');
   const [timeLimit,    setTimeLimit]    = useState('15');
   const [passMark,     setPassMark]     = useState('60');
   const [questions,    setQuestions]    = useState([blankQuestion()]);
-  const [publishing,   setPublishing]   = useState(false);
-  const [published,    setPublished]    = useState(false);
   const [activeQ,      setActiveQ]      = useState(0);
+
+  // Once course titles load, default the form to the first one (only if
+  // the trainer hasn't already picked something).
+  useEffect(() => {
+    if (!course && COURSES.length > 0) setCourse(COURSES[0]);
+  }, [COURSES, course]);
+
+  // Quizzes loaded from the database (this trainer's published/draft quizzes)
   const [savedQuizzes, setSavedQuizzes] = useState([]);
+  const [loadingList,  setLoadingList]  = useState(true);
+  const [listError,    setListError]    = useState(null);
+
+  // Results viewer (per-quiz attempts)
+  const [resultsFor,   setResultsFor]   = useState(null); // quiz object or null
+  const [results,      setResults]      = useState(null); // { quiz, attempts }
+  const [loadingResults, setLoadingResults] = useState(false);
+
+  const { loading: publishing, error: publishError, success: publishSuccess, run } = useAsync();
+
+  const loadQuizzes = useCallback(async () => {
+    setLoadingList(true);
+    setListError(null);
+    try {
+      const res = await fetch(`${API}/quizzes`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load quizzes');
+      setSavedQuizzes(json.data || []);
+    } catch (e) {
+      setListError(e.message);
+    } finally {
+      setLoadingList(false);
+    }
+  }, []);
+
+  useEffect(() => { loadQuizzes(); }, [loadQuizzes]);
 
   const updateQuestion = (idx, field, value) =>
     setQuestions((prev) => prev.map((q, i) => i === idx ? { ...q, [field]: value } : q));
@@ -1134,6 +1202,7 @@ export function CreateQuizPage() {
 
   const validate = () => {
     if (!quizTitle.trim()) { alert('Please enter a quiz title.'); return false; }
+    if (!course) { alert('Please select a course.'); return false; }
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.text.trim()) { alert(`Question ${i + 1}: enter question text.`); setActiveQ(i); return false; }
@@ -1142,22 +1211,63 @@ export function CreateQuizPage() {
     return true;
   };
 
-  const handlePublish = async () => {
-    if (!validate()) return;
-    setPublishing(true);
-
-    const payload = { title: quizTitle, course, timeLimitMinutes: Number(timeLimit), passMark: Number(passMark), questions };
-    try {
-      const res = await fetch(`${API}/quizzes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error('Server error');
-    } catch { await new Promise((r) => setTimeout(r, 900)); }
-
-    const totalMarks = questions.reduce((s, q) => s + Number(q.marks), 0);
-    setSavedQuizzes((prev) => [{ id: Date.now(), title: quizTitle, course, timeLimit: Number(timeLimit), passMark: Number(passMark), questions: questions.length, totalMarks, publishedAt: new Date().toISOString().split('T')[0] }, ...prev]);
-    setPublishing(false); setPublished(true);
+  const resetForm = () => {
     setQuizTitle(''); setTimeLimit('15'); setPassMark('60');
     setQuestions([blankQuestion()]); setActiveQ(0);
-    setTimeout(() => setPublished(false), 3000);
+  };
+
+  const handlePublish = async () => {
+    if (!validate()) return;
+
+    const payload = {
+      title: quizTitle,
+      course,
+      timeLimitMinutes: Number(timeLimit) || 15,
+      passMark: Number(passMark) || 60,
+      questions: questions.map((q) => ({ text: q.text, options: q.options, correct: q.correct, marks: Number(q.marks) || 1 })),
+      status: 'published',
+    };
+
+    await run(async () => {
+      const res = await fetch(`${API}/quizzes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to publish quiz');
+      // Refresh the list straight from the DB so the trainer sees exactly
+      // what students will see — this is the single source of truth.
+      await loadQuizzes();
+      resetForm();
+      return json.data;
+    }, 'Quiz published! Students in this course can now see it.');
+  };
+
+  const handleDelete = async (quizId) => {
+    if (!window.confirm('Delete this quiz? Students will no longer see it and existing results will be removed.')) return;
+    try {
+      const res = await fetch(`${API}/quizzes/${quizId}`, { method: 'DELETE', headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to delete quiz');
+      setSavedQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+      if (resultsFor?.id === quizId) { setResultsFor(null); setResults(null); }
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const openResults = async (quiz) => {
+    setResultsFor(quiz);
+    setResults(null);
+    setLoadingResults(true);
+    try {
+      const res = await fetch(`${API}/quizzes/${quiz.id}/results`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load results');
+      setResults(json.data);
+    } catch (e) {
+      alert(e.message);
+      setResultsFor(null);
+    } finally {
+      setLoadingResults(false);
+    }
   };
 
   const totalMarks = questions.reduce((s, q) => s + Number(q.marks), 0);
@@ -1167,7 +1277,7 @@ export function CreateQuizPage() {
     <div>
       <div className="page-header">
         <div className="page-title">Create Quiz</div>
-        <div className="page-sub">Build, preview and publish quizzes for your students</div>
+        <div className="page-sub">Build, publish and track quizzes for your students — changes here appear instantly in the student Quizzes tab</div>
       </div>
 
       <div className="grid-4" style={{ marginBottom: 20 }}>
@@ -1175,7 +1285,7 @@ export function CreateQuizPage() {
           ['❓ Questions',   questions.length,        ''],
           ['🏆 Total Marks', totalMarks,              ''],
           ['⏱️ Time Limit', `${timeLimit || '—'} min`, ''],
-          ['📋 Published',   savedQuizzes.length,     'this session'],
+          ['📋 Published',   savedQuizzes.length,     'total quizzes'],
         ].map(([label, val, sub]) => (
           <div className="metric-card" key={label}>
             <div className="metric-label">{label}</div>
@@ -1188,6 +1298,8 @@ export function CreateQuizPage() {
       <div className="grid-2" style={{ alignItems: 'start' }}>
         {/* Left: form */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <StatusBanner error={publishError} success={publishSuccess} />
+
           <div className="card">
             <div className="card-title">Quiz Settings</div>
             <div className="form-group">
@@ -1195,8 +1307,10 @@ export function CreateQuizPage() {
               <input className="form-input" placeholder="e.g. React Fundamentals Quiz" value={quizTitle} onChange={(e) => setQuizTitle(e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Course</label>
-              <select className="form-input" value={course} onChange={(e) => setCourse(e.target.value)}>
+              <label className="form-label">Course *</label>
+              <select className="form-input" value={course} onChange={(e) => setCourse(e.target.value)} disabled={loadingCourseTitles || COURSES.length === 0}>
+                {loadingCourseTitles && <option>Loading courses…</option>}
+                {!loadingCourseTitles && COURSES.length === 0 && <option>No courses available — ask an admin to add one</option>}
                 {COURSES.map((c) => <option key={c}>{c}</option>)}
               </select>
             </div>
@@ -1256,14 +1370,14 @@ export function CreateQuizPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="action-btn" style={{ flex: 1, fontSize: 13 }} onClick={() => { setQuizTitle(''); setTimeLimit('15'); setPassMark('60'); setQuestions([blankQuestion()]); setActiveQ(0); }}>🗑️ Clear</button>
+            <button className="action-btn" style={{ flex: 1, fontSize: 13 }} onClick={resetForm}>🗑️ Clear</button>
             <button className="action-btn accent" style={{ flex: 2, fontSize: 13 }} onClick={handlePublish} disabled={publishing}>
-              {publishing ? '⏳ Publishing…' : published ? '✅ Published!' : '✓ Publish Quiz'}
+              {publishing ? '⏳ Publishing…' : '✓ Publish Quiz'}
             </button>
           </div>
         </div>
 
-        {/* Right: preview + published */}
+        {/* Right: preview + published list + results */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="card" style={{ position: 'sticky', top: 16 }}>
             <div className="card-title">Quiz Preview</div>
@@ -1292,19 +1406,70 @@ export function CreateQuizPage() {
             </div>
           </div>
 
-          {savedQuizzes.length > 0 && (
-            <div className="card">
-              <div className="card-title">Published This Session ({savedQuizzes.length})</div>
-              {savedQuizzes.map((q) => (
+          <div className="card">
+            <div className="card-title">
+              Published Quizzes ({savedQuizzes.length})
+              <button className="action-btn" style={{ fontSize: 11 }} onClick={loadQuizzes}>↻ Refresh</button>
+            </div>
+
+            {loadingList && <div style={{ fontSize: 12, color: 'var(--sa-muted)', padding: '8px 0' }}>⏳ Loading quizzes…</div>}
+            {listError && (
+              <div style={{ padding: '8px 10px', borderRadius: 8, marginBottom: 8, fontSize: 12, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+                ⚠️ {listError}
+              </div>
+            )}
+            {!loadingList && !listError && savedQuizzes.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--sa-muted)', padding: '8px 0' }}>No quizzes published yet. Build one on the left and hit Publish.</div>
+            )}
+
+            {savedQuizzes.map((q) => {
+              const qTotalMarks = (q.questions || []).reduce((s, qq) => s + (Number(qq.marks) || 0), 0);
+              return (
                 <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--sa-border)' }}>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{q.title}</div>
-                    <div style={{ fontSize: 11, color: 'var(--sa-muted)', marginTop: 2 }}>{q.course} · {q.questions} Qs · {q.totalMarks} marks · {q.timeLimit} min · Pass {q.passMark}%</div>
+                    <div style={{ fontSize: 11, color: 'var(--sa-muted)', marginTop: 2 }}>
+                      {q.course} · {(q.questions || []).length} Qs · {qTotalMarks} marks · {q.time_limit_minutes} min · Pass {q.pass_mark}%
+                    </div>
                   </div>
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: '#EAF3DE', color: '#3B6D11' }}>✅ Live</span>
-                  <button className="action-btn" style={{ fontSize: 11, padding: '3px 7px', color: 'var(--sa-accent)' }} onClick={() => setSavedQuizzes((prev) => prev.filter((x) => x.id !== q.id))}>🗑️</button>
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, background: q.status === 'published' ? '#EAF3DE' : '#FEF3C7', color: q.status === 'published' ? '#3B6D11' : '#92400E', whiteSpace: 'nowrap' }}>
+                    {q.status === 'published' ? '✅ Live' : '📝 Draft'}
+                  </span>
+                  <button className="action-btn" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => openResults(q)}>📊 Results</button>
+                  <button className="action-btn" style={{ fontSize: 11, padding: '3px 7px', color: 'var(--sa-accent)' }} onClick={() => handleDelete(q.id)}>🗑️</button>
                 </div>
-              ))}
+              );
+            })}
+          </div>
+
+          {resultsFor && (
+            <div className="card">
+              <div className="card-title">
+                Results: {resultsFor.title}
+                <button className="action-btn" style={{ fontSize: 11 }} onClick={() => { setResultsFor(null); setResults(null); }}>✕ Close</button>
+              </div>
+              {loadingResults && <div style={{ fontSize: 12, color: 'var(--sa-muted)' }}>⏳ Loading results…</div>}
+              {!loadingResults && results && results.attempts.length === 0 && (
+                <div style={{ fontSize: 12, color: 'var(--sa-muted)' }}>No students have attempted this quiz yet.</div>
+              )}
+              {!loadingResults && results && results.attempts.length > 0 && (
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Student</th><th>Score</th><th>%</th><th>Result</th><th>Submitted</th></tr>
+                  </thead>
+                  <tbody>
+                    {results.attempts.map((a) => (
+                      <tr key={a.id}>
+                        <td>{a.student_name}<div style={{ fontSize: 10, color: 'var(--sa-muted)' }}>{a.student_email}</div></td>
+                        <td>{a.score}/{a.total_marks}</td>
+                        <td>{a.percentage}%</td>
+                        <td><span className={`status-pill ${a.passed ? 'status-active' : 'status-pending'}`}>{a.passed ? 'Passed' : 'Failed'}</span></td>
+                        <td style={{ fontSize: 11 }}>{new Date(a.submitted_at).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </div>
@@ -1861,7 +2026,7 @@ export function TrainerNotificationsPage() {
 // 7. SCHEDULE LIVE CLASS PAGE
 // ════════════════════════════════════════════════════════════════════════════
 export function ScheduleLiveClassPage({ navigate }) {
-  const COURSES   = ['Full Stack Web Development', 'Data science and Machine learning', 'UI/UX Master class', 'Devops And Cloud Engineering', 'Python with AI', 'React Native Mobile dev', 'Ai and Deep learning'];
+  const { courseTitles: COURSES, loadingCourseTitles } = useCourseTitles();
   const PLATFORMS = ['Zoom', 'Google Meet', 'Microsoft Teams', 'Jitsi Meet', 'Custom Link'];
 
   const STATUS_META = {
@@ -1920,7 +2085,7 @@ export function ScheduleLiveClassPage({ navigate }) {
 
   // ── Form fields ────────────────────────────────────────────────────────────
   const [fTitle,       setFTitle]       = useState('');
-  const [fCourse,      setFCourse]      = useState('Full Stack Web Development');
+  const [fCourse,      setFCourse]      = useState('');
   const [fDate,        setFDate]        = useState(todayStr);
   const [fTime,        setFTime]        = useState(defaultTime);
   const [fDuration,    setFDuration]    = useState('60');
@@ -1934,11 +2099,16 @@ export function ScheduleLiveClassPage({ navigate }) {
   const [fNotifyEmail, setFNotifyEmail] = useState(true);
   const [fNotifySMS,   setFNotifySMS]   = useState(false);
 
-  const ENROLL_MAP = { 'Full Stack Web Development': 142, 'Python with AI': 98, 'Advanced React': 65 };
+  // Once course titles load, default the form to the first one (only if
+  // nothing's been picked yet) — same pattern as the quiz form.
+  useEffect(() => {
+    if (!fCourse && COURSES.length > 0) setFCourse(COURSES[0]);
+  }, [COURSES, fCourse]);
+
   const PLATFORM_EMOJI = { 'Zoom': '📹', 'Google Meet': '📅', 'Microsoft Teams': '🟦', 'Jitsi Meet': '🔗', 'Custom Link': '🔗' };
 
   const resetForm = () => {
-    setFTitle(''); setFCourse('Full Stack Web Development');
+    setFTitle(''); setFCourse(COURSES[0] || '');
     setFDate(todayStr); setFTime(defaultTime); setFDuration('60');
     setFPlatform('Zoom'); setFLink(''); setFDesc('');
     setFRecurring(false); setFRecurType('weekly'); setFRecurCount('4');
@@ -2151,7 +2321,9 @@ export function ScheduleLiveClassPage({ navigate }) {
 
               <div className="form-group">
                 <label className="form-label">Course</label>
-                <select className="form-input" value={fCourse} onChange={(e) => setFCourse(e.target.value)}>
+                <select className="form-input" value={fCourse} onChange={(e) => setFCourse(e.target.value)} disabled={loadingCourseTitles || COURSES.length === 0}>
+                  {loadingCourseTitles && <option>Loading courses…</option>}
+                  {!loadingCourseTitles && COURSES.length === 0 && <option>No courses available — ask an admin to add one</option>}
                   {COURSES.map((c) => <option key={c}>{c}</option>)}
                 </select>
               </div>
@@ -2321,7 +2493,6 @@ export function ScheduleLiveClassPage({ navigate }) {
                   ['⏰', fTime ? `${fTime} IST` : 'Time not set'],
                   ['⏱️', `${fDuration} minutes`],
                   ['💻', fPlatform],
-                  ['👥', `${ENROLL_MAP[fCourse] || 0} students enrolled`],
                 ].map(([icon, val]) => (
                   <div key={icon} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid var(--sa-border)' }}>
                     <span style={{ fontSize: 14, width: 22, textAlign: 'center' }}>{icon}</span>

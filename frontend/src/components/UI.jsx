@@ -17,6 +17,7 @@ export function CourseCard({ course, showProgress, onOpen }) {
           </div>
         )}
         <div className="course-meta">
+          <span className="course-price">{course.price}</span>
           <span className="stars">★ {course.rating}</span>
         </div>
       </div>

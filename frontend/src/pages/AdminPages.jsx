@@ -1,8 +1,41 @@
-import { useEffect, useState } from 'react';
-import { courses, students } from '../data/data';
-import { thumbEmoji } from '../data/data';
+import { useEffect, useState, useCallback } from 'react';
+import { courses as dashboardCourses, thumbEmoji } from '../data/data';
 import { TrainersPage } from './PublicPages';
 import { TrainerDashboard } from './TrainerPages';
+
+// ── Shared API helpers (mirrors the pattern used in TrainerPages.jsx /
+// StudentPages.jsx for live classes and quizzes) ──────────────────────────
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+});
+
+// Course titles for the student-enrollment picker — fetched from the real
+// `courses` table the admin manages on this same page, instead of the old
+// hardcoded data.js list. Any role can hit GET /api/courses/titles.
+function useCourseTitles() {
+  const [titles, setTitles] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API}/courses/titles`, { headers: authHeaders() });
+        const json = await res.json();
+        if (!cancelled && res.ok) setTitles(json.titles || []);
+      } catch {
+        // leave empty rather than fall back to a stale hardcoded list
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { courseTitles: titles, loadingCourseTitles: loading };
+}
 
 export function AdminDashboard({ userName }) {
   const bars = [48, 62, 38, 75, 55, 82, 91, 70, 88, 65, 74, 96];
@@ -32,7 +65,7 @@ export function AdminDashboard({ userName }) {
 
         <div className="card">
           <div className="card-title">Top performing courses</div>
-          {courses.slice(0, 4).map((c) => (
+          {dashboardCourses.slice(0, 4).map((c) => (
             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <div style={{ fontSize: 16 }}>{thumbEmoji[c.thumb]}</div>
               <div style={{ flex: 1 }}>
@@ -50,276 +83,418 @@ export function AdminDashboard({ userName }) {
   );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// USER MANAGEMENT (students) — fully wired to the backend. Students now
+// live in their own `students` table (separate from trainers/admins), so
+// every single-record call includes ?role=student to tell the backend
+// which table to use.
+//   GET    /api/users?role=student              list
+//   POST   /api/users                            create (role: 'student', name, email, password, courses[])
+//   PUT    /api/users/:id?role=student           edit   (name, email, isActive, password?, courses[])
+//   DELETE /api/users/:id?role=student           remove
+// ════════════════════════════════════════════════════════════════════════════
+function UserFormModal({ initial, onClose, onSaved }) {
+  const isEdit = !!initial;
+  const { courseTitles: COURSE_TITLES, loadingCourseTitles } = useCourseTitles();
+  const [name, setName]           = useState(initial?.name || '');
+  const [email, setEmail]         = useState(initial?.email || '');
+  const [password, setPassword]   = useState('');
+  const [isActive, setIsActive]   = useState(initial?.is_active ?? true);
+  const [selectedCourses, setSelectedCourses] = useState(initial?.courses || []);
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState(null);
+
+  const toggleCourse = (title) =>
+    setSelectedCourses((prev) => prev.includes(title) ? prev.filter((c) => c !== title) : [...prev, title]);
+
+  const handleSave = async () => {
+    setError(null);
+    if (!name.trim()) { setError('Name is required.'); return; }
+    if (!email.trim()) { setError('Email is required.'); return; }
+    if (!isEdit && (!password || password.length < 6)) { setError('Password must be at least 6 characters.'); return; }
+    if (isEdit && password && password.length < 6) { setError('New password must be at least 6 characters.'); return; }
+
+    const payload = {
+      name: name.trim(),
+      email: email.trim(),
+      role: 'student',
+      courses: selectedCourses,
+    };
+    if (!isEdit) payload.password = password;
+    if (isEdit && password) payload.password = password;
+    if (isEdit) payload.isActive = isActive;
+
+    setSaving(true);
+    try {
+      const url = isEdit ? `${API}/users/${initial.id}?role=student` : `${API}/users`;
+      const res = await fetch(url, { method: isEdit ? 'PUT' : 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to save user');
+      onSaved(json.user);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" style={{ position: 'fixed', zIndex: 200 }}>
+      <div className="modal" style={{ width: 480, maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', textAlign: 'left', padding: 24 }}>
+        <div className="modal-title" style={{ textAlign: 'left' }}>{isEdit ? 'Edit Student' : 'Add Student'}</div>
+        <div className="modal-sub" style={{ textAlign: 'left' }}>{isEdit ? 'Update this student\u2019s details. Leave password blank to keep it unchanged.' : 'This creates a real login the student can use right away.'}</div>
+
+        {error && (
+          <div style={{ padding: '8px 10px', borderRadius: 8, marginBottom: 12, fontSize: 12, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">Full Name *</label>
+          <input className="form-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Anjali Sharma" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Email *</label>
+          <input className="form-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="student@example.com" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">{isEdit ? 'New Password (optional)' : 'Password *'}</label>
+          <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={isEdit ? 'Leave blank to keep current password' : 'Minimum 6 characters'} />
+        </div>
+        {isEdit && (
+          <div className="form-group">
+            <label className="form-label">Status</label>
+            <select className="form-input" value={isActive ? 'active' : 'inactive'} onChange={(e) => setIsActive(e.target.value === 'active')}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        )}
+        <div className="form-group">
+          <label className="form-label">Enrolled Courses</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflowY: 'auto', border: '1px solid var(--sa-border)', borderRadius: 'var(--border-radius-md)', padding: 8 }}>
+            {loadingCourseTitles && <div style={{ fontSize: 12, color: 'var(--sa-muted)' }}>Loading courses…</div>}
+            {!loadingCourseTitles && COURSE_TITLES.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--sa-muted)' }}>No courses yet — add one in Course Management first.</div>
+            )}
+            {COURSE_TITLES.map((title) => (
+              <label key={title} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox" checked={selectedCourses.includes(title)} onChange={() => toggleCourse(title)} style={{ accentColor: 'var(--sa-teal)' }} />
+                {title}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="modal-btns" style={{ marginTop: 16 }}>
+          <button onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Student'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function UserManagementPage() {
-  const [users, setUsers] = useState([
-    ...students,
-    {
-      name: "Pandeeswaran",
-      email: "pandi@swivel.com",
-      course: "—",
-      status: "active",
-      initials: "PS",
-      av: "av-b",
-    },
-  ]);
+  const [users, setUsers]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+  const [search, setSearch]   = useState('');
+  const [modalUser, setModalUser] = useState(undefined); // undefined = closed, null = add, object = edit
 
-  const [search, setSearch] = useState("");
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/users?role=student`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load students');
+      setUsers(json.users || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // CREATE
-  const handleAddUser = () => {
-    const name = prompt("Enter user name");
-    if (!name) return;
+  useEffect(() => { loadUsers(); }, [loadUsers]);
 
-    const email = prompt("Enter email");
-    if (!email) return;
-
-    const newUser = {
-      name,
-      email,
-      course: "New Course",
-      status: "active",
-      initials: name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase(),
-      av: "av-a",
-    };
-
-    setUsers([...users, newUser]);
+  const handleDeleteUser = async (user) => {
+    if (!window.confirm(`Delete student "${user.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API}/users/${user.id}?role=student`, { method: 'DELETE', headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to delete user');
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
-  // UPDATE
-  const handleEditUser = (index) => {
-    const user = users[index];
-
-    const updatedName = prompt("Edit name", user.name);
-    if (!updatedName) return;
-
-    const updatedEmail = prompt("Edit email", user.email);
-
-    const updatedUsers = [...users];
-    updatedUsers[index] = {
-      ...user,
-      name: updatedName,
-      email: updatedEmail,
-      initials: updatedName
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase(),
-    };
-
-    setUsers(updatedUsers);
+  const handleSaved = (savedUser) => {
+    setUsers((prev) => {
+      const exists = prev.some((u) => u.id === savedUser.id);
+      return exists ? prev.map((u) => (u.id === savedUser.id ? savedUser : u)) : [savedUser, ...prev];
+    });
+    setModalUser(undefined);
   };
 
-  // DELETE
-  const handleDeleteUser = (index) => {
-    if (!window.confirm("Delete this user?")) return;
-
-    setUsers(users.filter((_, i) => i !== index));
-  };
-
-  // SEARCH
   const filteredUsers = users.filter(
     (u) =>
       u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.role?.toLowerCase().includes(search.toLowerCase())
+      u.email.toLowerCase().includes(search.toLowerCase())
   );
+
+  const initials = (name) => (name || '').split(' ').filter(Boolean).map((n) => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 
   return (
     <div>
       <div className="page-header">
         <div className="page-title">User Management</div>
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button
-            className="action-btn accent"
-            onClick={handleAddUser}
-          >
-            + Add User
-          </button>
-          <button className="action-btn">⬇ Export</button>
+        <div className="page-sub">Students you create here can log in immediately with the email and password you set</div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="action-btn accent" onClick={() => setModalUser(null)}>+ Add User</button>
+          <button className="action-btn" onClick={loadUsers}>↻ Refresh</button>
         </div>
       </div>
 
       <div className="search-bar">
         <span>🔍</span>
         <input
-          placeholder="Search users by name, email..."
+          placeholder="Search students by name or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
+      {error && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+          ⚠️ {error}
+        </div>
+      )}
+
       <div className="card">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Email</th>
-              <th>Enrolled In</th>
-              <th>PaymentStatus</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {filteredUsers.map((s, index) => (
-              <tr key={s.email}>
-                <td>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <div
-                      className={`avatar ${s.av}`}
-                      style={{
-                        width: 26,
-                        height: 26,
-                        fontSize: 10,
-                      }}
-                    >
-                      {s.initials}
-                    </div>
-                    {s.name}
-                  </div>
-                </td>
-
-                <td
-                  style={{
-                    fontSize: 11,
-                    color: "var(--sa-muted)",
-                  }}
-                >
-                  {s.email}
-                </td>
-
-                
-
-                <td style={{ fontSize: 11 }}>
-                  {s.course}
-                </td>
-
-                <td>
-                  <span
-                    className={`status-pill status-${s.status}`}
-                  >
-                    {s.status}
-                  </span>
-                </td>
-
-                <td>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <button
-                      className="action-btn"
-                      style={{
-                        padding: "3px 8px",
-                        fontSize: 11,
-                      }}
-                      onClick={() => handleEditUser(index)}
-                    >
-                      ✏️
-                    </button>
-
-                    <button
-                      className="action-btn"
-                      style={{
-                        padding: "3px 8px",
-                        fontSize: 11,
-                        color: "var(--sa-accent)",
-                      }}
-                      onClick={() => handleDeleteUser(index)}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </td>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 24, color: 'var(--sa-muted)' }}>⏳ Loading students…</div>
+        ) : filteredUsers.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 24, color: 'var(--sa-muted)' }}>
+            {users.length === 0 ? 'No students yet. Click "+ Add User" to create the first one.' : 'No students match your search.'}
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Email</th>
+                <th>Enrolled In</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredUsers.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="avatar av-a" style={{ width: 26, height: 26, fontSize: 10 }}>{initials(u.name)}</div>
+                      {u.name}
+                    </div>
+                  </td>
+                  <td style={{ fontSize: 11, color: 'var(--sa-muted)' }}>{u.email}</td>
+                  <td style={{ fontSize: 11 }}>{(u.courses && u.courses.length > 0) ? u.courses.join(', ') : '—'}</td>
+                  <td>
+                    <span className={`status-pill status-${u.is_active ? 'active' : 'pending'}`}>{u.is_active ? 'active' : 'inactive'}</span>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="action-btn" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => setModalUser(u)}>✏️</button>
+                      <button className="action-btn" style={{ padding: '3px 8px', fontSize: 11, color: 'var(--sa-accent)' }} onClick={() => handleDeleteUser(u)}>🗑️</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {modalUser !== undefined && (
+        <UserFormModal initial={modalUser} onClose={() => setModalUser(undefined)} onSaved={handleSaved} />
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// COURSE MANAGEMENT — fully wired to the backend. This is the single
+// source of truth for course titles used everywhere else in the app
+// (trainer's quiz form, trainer's live-class form, student enrollment
+// picker) via GET /api/courses/titles.
+//   GET    /api/courses             list (admin, includes live enrolled-student counts)
+//   POST   /api/courses             create
+//   PUT    /api/courses/:id         edit
+//   DELETE /api/courses/:id         remove
+// ════════════════════════════════════════════════════════════════════════════
+const THUMB_OPTIONS = Object.keys(thumbEmoji);
+const CATEGORY_OPTIONS = ['Web Dev', 'Data Science', 'Design', 'DevOps', 'Mobile', 'AI/ML', 'IT Support', 'General'];
+
+function CourseFormModal({ initial, onClose, onSaved }) {
+  const isEdit = !!initial;
+  const [title, setTitle]             = useState(initial?.title || '');
+  const [trainerName, setTrainerName] = useState(initial?.trainer_name || '');
+  const [category, setCategory]       = useState(initial?.category || CATEGORY_OPTIONS[0]);
+  const [price, setPrice]             = useState(initial?.price || '');
+  const [thumb, setThumb]             = useState(initial?.thumb || THUMB_OPTIONS[0]);
+  const [status, setStatus]           = useState(initial?.status || 'active');
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState(null);
+
+  const handleSave = async () => {
+    setError(null);
+    if (!title.trim()) { setError('Course title is required.'); return; }
+
+    const payload = {
+      title: title.trim(),
+      trainerName: trainerName.trim(),
+      category,
+      price: price.trim() || '₹0',
+      thumb,
+      status,
+    };
+
+    setSaving(true);
+    try {
+      const url = isEdit ? `${API}/courses/${initial.id}` : `${API}/courses`;
+      const res = await fetch(url, { method: isEdit ? 'PUT' : 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to save course');
+      onSaved(json.course);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" style={{ position: 'fixed', zIndex: 200 }}>
+      <div className="modal" style={{ width: 460, maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', textAlign: 'left', padding: 24 }}>
+        <div className="modal-title" style={{ textAlign: 'left' }}>{isEdit ? 'Edit Course' : 'Add Course'}</div>
+        <div className="modal-sub" style={{ textAlign: 'left' }}>{isEdit ? 'Changing the title updates it everywhere this course is referenced.' : 'This course immediately becomes available in every quiz/live-class course picker.'}</div>
+
+        {error && (
+          <div style={{ padding: '8px 10px', borderRadius: 8, marginBottom: 12, fontSize: 12, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">Course Title *</label>
+          <input className="form-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Full Stack Web Development" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Trainer Name</label>
+          <input className="form-input" value={trainerName} onChange={(e) => setTrainerName(e.target.value)} placeholder="e.g. Pandeeswaran" />
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label className="form-label">Category</label>
+            <select className="form-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+              {CATEGORY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label className="form-label">Icon</label>
+            <select className="form-input" value={thumb} onChange={(e) => setThumb(e.target.value)}>
+              {THUMB_OPTIONS.map((t) => <option key={t} value={t}>{thumbEmoji[t]} {t}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label className="form-label">Price</label>
+            <input className="form-input" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g. ₹12,999" />
+          </div>
+          {isEdit && (
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Status</label>
+              <select className="form-input" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-btns" style={{ marginTop: 16 }}>
+          <button onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Course'}</button>
+        </div>
       </div>
     </div>
   );
 }
 
 export function CourseManagementPage() {
-  const [courseList, setCourseList] = useState(courses);
+  const [courseList, setCourseList] = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
+  const [modalCourse, setModalCourse] = useState(undefined); // undefined = closed, null = add, object = edit
 
-  // CREATE
-  const handleAddCourse = () => {
-    const title = prompt('Course Title');
-    if (!title) return;
+  const loadCourses = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/courses`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load courses');
+      setCourseList(json.courses || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    const trainer = prompt('Trainer Name');
-    const category = prompt('Category');
+  useEffect(() => { loadCourses(); }, [loadCourses]);
 
-    const newCourse = {
-      id: Date.now(),
-      title,
-      trainer: trainer || 'Unknown',
-      category: category || 'General',
-      students: 0,
-      price: '$0',
-      thumb: 'code',
-    };
-
-    setCourseList([...courseList, newCourse]);
+  const handleDeleteCourse = async (course) => {
+    if (!window.confirm(`Delete "${course.title}"? Existing quizzes/classes that reference this course title won't be removed, but it will disappear from every course picker.`)) return;
+    try {
+      const res = await fetch(`${API}/courses/${course.id}`, { method: 'DELETE', headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to delete course');
+      setCourseList((prev) => prev.filter((c) => c.id !== course.id));
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
-  // UPDATE
-  const handleEditCourse = (id) => {
-    const course = courseList.find((c) => c.id === id);
-
-    const updatedTitle = prompt('Edit Course Title', course.title);
-    if (!updatedTitle) return;
-
-    const updatedTrainer = prompt('Edit Trainer', course.trainer);
-    const updatedCategory = prompt('Edit Category', course.category);
-
-    setCourseList(
-      courseList.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              title: updatedTitle,
-              trainer: updatedTrainer,
-              category: updatedCategory,
-            }
-          : c
-      )
-    );
-  };
-
-  // DELETE
-  const handleDeleteCourse = (id) => {
-    const confirmDelete = window.confirm(
-      'Are you sure you want to delete this course?'
-    );
-
-    if (!confirmDelete) return;
-
-    setCourseList(courseList.filter((c) => c.id !== id));
+  const handleSaved = (savedCourse) => {
+    setCourseList((prev) => {
+      const exists = prev.some((c) => c.id === savedCourse.id);
+      return exists ? prev.map((c) => (c.id === savedCourse.id ? savedCourse : c)) : [savedCourse, ...prev];
+    });
+    setModalCourse(undefined);
   };
 
   return (
     <div>
       <div className="page-header">
         <div className="page-title">Course Management</div>
-
-        <div style={{ marginTop: 8 }}>
-          <button
-            className="action-btn accent"
-            onClick={handleAddCourse}
-          >
-            + Add Course
-          </button>
+        <div className="page-sub">Courses created here are immediately available in every quiz and live-class course picker, and in students' enrollment options</div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="action-btn accent" onClick={() => setModalCourse(null)}>+ Add Course</button>
+          <button className="action-btn" onClick={loadCourses}>↻ Refresh</button>
         </div>
       </div>
+
+      {error && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+          ⚠️ {error}
+        </div>
+      )}
 
       <div className="card">
         <table className="data-table">
@@ -328,203 +503,215 @@ export function CourseManagementPage() {
               <th>Course</th>
               <th>Trainer</th>
               <th>Category</th>
+              <th>Students</th>
+              <th>Price</th>
               <th>Status</th>
-              <th>action</th>
+              <th></th>
             </tr>
           </thead>
 
           <tbody>
-            {courseList.map((c) => (
-              <tr key={c.id}>
-                <td>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <span style={{ fontSize: 16 }}>
-                      {thumbEmoji[c.thumb]}
-                    </span>
-
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {c.title}
+            {loading ? (
+              <tr><td colSpan="7" style={{ textAlign: 'center', padding: 24, color: 'var(--sa-muted)' }}>⏳ Loading courses…</td></tr>
+            ) : courseList.length > 0 ? (
+              courseList.map((c) => (
+                <tr key={c.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>{thumbEmoji[c.thumb] || '📘'}</span>
+                      <div style={{ fontSize: 12, fontWeight: 500 }}>{c.title}</div>
                     </div>
-                  </div>
-                </td>
-
-                <td
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--sa-muted)',
-                  }}
-                >
-                  {c.trainer}
-                </td>
-
-                <td style={{ fontSize: 11 }}>
-                  {c.category}
-                </td>
-
-                <td>
-                  <span className="status-pill status-active">
-                    active
-                  </span>
-                </td>
-
-                <td>
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 4,
-                    }}
-                  >
-                    <button
-                      className="action-btn"
-                      style={{
-                        padding: '3px 8px',
-                        fontSize: 11,
-                      }}
-                      onClick={() => handleEditCourse(c.id)}
-                    >
-                      ✏️
-                    </button>
-
-                    <button
-                      className="action-btn"
-                      style={{
-                        padding: '3px 8px',
-                        fontSize: 11,
-                        color: 'var(--sa-accent)',
-                      }}
-                      onClick={() => handleDeleteCourse(c.id)}
-                    >
-                      🗑️
-                    </button>
-                  </div>
+                  </td>
+                  <td style={{ fontSize: 11, color: 'var(--sa-muted)' }}>{c.trainer_name || '—'}</td>
+                  <td style={{ fontSize: 11 }}>{c.category}</td>
+                  <td style={{ fontSize: 12 }}>{c.students}</td>
+                  <td style={{ fontSize: 12, fontWeight: 500 }}>{c.price}</td>
+                  <td>
+                    <span className={`status-pill status-${c.status === 'active' ? 'active' : 'pending'}`}>{c.status}</span>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="action-btn" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => setModalCourse(c)}>✏️</button>
+                      <button className="action-btn" style={{ padding: '3px 8px', fontSize: 11, color: 'var(--sa-accent)' }} onClick={() => handleDeleteCourse(c)}>🗑️</button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>
+                  No courses yet. Click "+ Add Course" to create the first one.
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
+      </div>
+
+      {modalCourse !== undefined && (
+        <CourseFormModal initial={modalCourse} onClose={() => setModalCourse(undefined)} onSaved={handleSaved} />
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TRAINER MANAGEMENT — fully wired to the backend. Trainers now live in
+// their own `trainers` table (separate from students/admins), so every
+// single-record call includes ?role=trainer to tell the backend which
+// table to use.
+//   GET    /api/users?role=trainer              list
+//   POST   /api/users                            create (role: 'trainer', name, email, password, specialization)
+//   PUT    /api/users/:id?role=trainer           edit   (name, email, isActive, specialization, password?)
+//   DELETE /api/users/:id?role=trainer           remove
+// ════════════════════════════════════════════════════════════════════════════
+function TrainerFormModal({ initial, onClose, onSaved }) {
+  const isEdit = !!initial;
+  const [name, setName]                   = useState(initial?.name || '');
+  const [email, setEmail]                 = useState(initial?.email || '');
+  const [password, setPassword]           = useState('');
+  const [specialization, setSpecialization] = useState(initial?.specialization || '');
+  const [isActive, setIsActive]           = useState(initial?.is_active ?? true);
+  const [saving, setSaving]               = useState(false);
+  const [error, setError]                 = useState(null);
+
+  const handleSave = async () => {
+    setError(null);
+    if (!name.trim()) { setError('Name is required.'); return; }
+    if (!email.trim()) { setError('Email is required.'); return; }
+    if (!isEdit && (!password || password.length < 6)) { setError('Password must be at least 6 characters.'); return; }
+    if (isEdit && password && password.length < 6) { setError('New password must be at least 6 characters.'); return; }
+
+    const payload = {
+      name: name.trim(),
+      email: email.trim(),
+      role: 'trainer',
+      specialization: specialization.trim(),
+    };
+    if (!isEdit) payload.password = password;
+    if (isEdit && password) payload.password = password;
+    if (isEdit) payload.isActive = isActive;
+
+    setSaving(true);
+    try {
+      const url = isEdit ? `${API}/users/${initial.id}?role=trainer` : `${API}/users`;
+      const res = await fetch(url, { method: isEdit ? 'PUT' : 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to save trainer');
+      onSaved(json.user);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" style={{ position: 'fixed', zIndex: 200 }}>
+      <div className="modal" style={{ width: 440, maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', textAlign: 'left', padding: 24 }}>
+        <div className="modal-title" style={{ textAlign: 'left' }}>{isEdit ? 'Edit Trainer' : 'Add Trainer'}</div>
+        <div className="modal-sub" style={{ textAlign: 'left' }}>{isEdit ? 'Update this trainer\u2019s details. Leave password blank to keep it unchanged.' : 'This creates a real login the trainer can use right away.'}</div>
+
+        {error && (
+          <div style={{ padding: '8px 10px', borderRadius: 8, marginBottom: 12, fontSize: 12, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">Full Name *</label>
+          <input className="form-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Pandeeswaran" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Email *</label>
+          <input className="form-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="trainer@example.com" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">{isEdit ? 'New Password (optional)' : 'Password *'}</label>
+          <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={isEdit ? 'Leave blank to keep current password' : 'Minimum 6 characters'} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Specialization</label>
+          <input className="form-input" value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="e.g. React, Node.js, UI/UX" />
+        </div>
+        {isEdit && (
+          <div className="form-group">
+            <label className="form-label">Status</label>
+            <select className="form-input" value={isActive ? 'active' : 'inactive'} onChange={(e) => setIsActive(e.target.value === 'active')}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        )}
+
+        <div className="modal-btns" style={{ marginTop: 16 }}>
+          <button onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Trainer'}</button>
+        </div>
       </div>
     </div>
   );
 }
 
 export function TrainerManagementPage() {
-  const [trainerList, setTrainerList] = useState([
-    {
-      id: 1,
-      name: 'bastin',
-      email: 'bastin@example.com',
-      specialization: 'React',
-      courses: 5,
-      status: 'active',
-    },
-    {
-      id: 2,
-      name: 'sridhar',
-      email: 'sridhar@example.com',
-      specialization: 'Node.js',
-      courses: 3,
-      status: 'active',
-    },
-  ]);
+  const [trainerList, setTrainerList] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [modalTrainer, setModalTrainer] = useState(undefined); // undefined = closed, null = add, object = edit
 
-  // CREATE
-  const handleAddTrainer = () => {
-    const name = prompt('Trainer Name');
-    if (!name) return;
-
-    const email = prompt('Trainer Email');
-    const specialization = prompt('Specialization');
-
-    const newTrainer = {
-      id: Date.now(),
-      name,
-      email: email || '',
-      specialization: specialization || 'General',
-      courses: 0,
-      status: 'active',
-    };
-
-    setTrainerList((prev) => [...prev, newTrainer]);
-  };
-
-  // UPDATE
-  const handleEditTrainer = (id) => {
-    const trainer = trainerList.find((t) => t.id === id);
-
-    if (!trainer) return;
-
-    const updatedName = prompt(
-      'Edit Trainer Name',
-      trainer.name
-    );
-
-    if (!updatedName) return;
-
-    const updatedEmail = prompt(
-      'Edit Email',
-      trainer.email
-    );
-
-    const updatedSpecialization = prompt(
-      'Edit Specialization',
-      trainer.specialization
-    );
-
-    setTrainerList((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? {
-              ...t,
-              name: updatedName,
-              email: updatedEmail || '',
-              specialization:
-                updatedSpecialization || 'General',
-            }
-          : t
-      )
-    );
-  };
-
-  // DELETE
-  const handleDeleteTrainer = (id) => {
-    const confirmDelete = window.confirm(
-      'Are you sure you want to delete this trainer?'
-    );
-
-    if (confirmDelete) {
-      setTrainerList((prev) =>
-        prev.filter((t) => t.id !== id)
-      );
+  const loadTrainers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/users?role=trainer`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load trainers');
+      setTrainerList(json.users || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { loadTrainers(); }, [loadTrainers]);
+
+  const handleDeleteTrainer = async (trainer) => {
+    if (!window.confirm(`Delete trainer "${trainer.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API}/users/${trainer.id}?role=trainer`, { method: 'DELETE', headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to delete trainer');
+      setTrainerList((prev) => prev.filter((t) => t.id !== trainer.id));
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const handleSaved = (savedTrainer) => {
+    setTrainerList((prev) => {
+      const exists = prev.some((t) => t.id === savedTrainer.id);
+      return exists ? prev.map((t) => (t.id === savedTrainer.id ? savedTrainer : t)) : [savedTrainer, ...prev];
+    });
+    setModalTrainer(undefined);
   };
 
   return (
     <div>
       <div className="page-header">
-        <div className="page-title">
-          Trainer Management
-        </div>
-
-        <div style={{ marginTop: 8 }}>
-          <button
-            className="action-btn accent"
-            onClick={handleAddTrainer}
-          >
-            + Add Trainer
-          </button>
+        <div className="page-title">Trainer Management</div>
+        <div className="page-sub">Trainers you create here can log in immediately with the email and password you set</div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className="action-btn accent" onClick={() => setModalTrainer(null)}>+ Add Trainer</button>
+          <button className="action-btn" onClick={loadTrainers}>↻ Refresh</button>
         </div>
       </div>
+
+      {error && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13, background: '#fff0f0', border: '1px solid #fca5a5', color: '#b91c1c' }}>
+          ⚠️ {error}
+        </div>
+      )}
 
       <div className="card">
         <table className="data-table">
@@ -533,92 +720,45 @@ export function TrainerManagementPage() {
               <th>Name</th>
               <th>Email</th>
               <th>Specialization</th>
-              <th>Courses</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
 
           <tbody>
-            {trainerList.length > 0 ? (
+            {loading ? (
+              <tr><td colSpan="5" style={{ textAlign: 'center', padding: 24, color: 'var(--sa-muted)' }}>⏳ Loading trainers…</td></tr>
+            ) : trainerList.length > 0 ? (
               trainerList.map((t) => (
                 <tr key={t.id}>
                   <td>{t.name}</td>
-
-                  <td
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--sa-muted)',
-                    }}
-                  >
-                    {t.email}
-                  </td>
-
-                  <td>{t.specialization}</td>
-
-                  <td>{t.courses}</td>
-
+                  <td style={{ fontSize: 11, color: 'var(--sa-muted)' }}>{t.email}</td>
+                  <td>{t.specialization || '—'}</td>
                   <td>
-                    <span
-                      className={`status-pill status-${t.status}`}
-                    >
-                      {t.status}
-                    </span>
+                    <span className={`status-pill status-${t.is_active ? 'active' : 'pending'}`}>{t.is_active ? 'active' : 'inactive'}</span>
                   </td>
-
                   <td>
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 4,
-                      }}
-                    >
-                      <button
-                        className="action-btn"
-                        style={{
-                          padding: '3px 8px',
-                          fontSize: 11,
-                        }}
-                        onClick={() =>
-                          handleEditTrainer(t.id)
-                        }
-                      >
-                        ✏️
-                      </button>
-
-                      <button
-                        className="action-btn"
-                        style={{
-                          padding: '3px 8px',
-                          fontSize: 11,
-                          color: 'var(--sa-accent)',
-                        }}
-                        onClick={() =>
-                          handleDeleteTrainer(t.id)
-                        }
-                      >
-                        🗑️
-                      </button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="action-btn" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => setModalTrainer(t)}>✏️</button>
+                      <button className="action-btn" style={{ padding: '3px 8px', fontSize: 11, color: 'var(--sa-accent)' }} onClick={() => handleDeleteTrainer(t)}>🗑️</button>
                     </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td
-                  colSpan="6"
-                  style={{
-                    textAlign: 'center',
-                    padding: '20px',
-                  }}
-                >
-                  No trainers found
+                <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>
+                  No trainers yet. Click "+ Add Trainer" to create the first one.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {modalTrainer !== undefined && (
+        <TrainerFormModal initial={modalTrainer} onClose={() => setModalTrainer(undefined)} onSaved={handleSaved} />
+      )}
     </div>
   );
 }
@@ -920,6 +1060,33 @@ export function SettingsPage() {
         </div>
       </div>
 
+      {/* Platform Settings */}
+      <div style={cardStyle}>
+        <h2>Platform Settings</h2>
+
+        <div style={{ marginBottom: "15px" }}>
+          <label>Platform Name</label>
+
+          <input
+            type="text"
+            name="platformName"
+            value={settings.platformName}
+            onChange={handleChange}
+            style={inputStyle}
+          />
+        </div>
+
+        <label>
+          <input
+            type="checkbox"
+            name="maintenanceMode"
+            checked={settings.maintenanceMode}
+            onChange={handleChange}
+          />{" "}
+          Maintenance Mode
+        </label>
+      </div>
+
       {/* Notification Settings */}
       <div style={cardStyle}>
         <h2>Notification Settings</h2>
@@ -1041,7 +1208,7 @@ export function SettingsPage() {
       <div style={cardStyle}>
         <h2>Session Management</h2>
 
-        <button className="action-btn accent" style={{ marginTop: "15px" }} onClick={handleLogoutAllDevices}>
+        <button className="action-btn accent" onClick={handleLogoutAllDevices}>
           Logout From All Devices
         </button>
       </div>
@@ -1051,15 +1218,13 @@ export function SettingsPage() {
         style={{
           ...cardStyle,
           border: "1px solid #ef4444",
-          gap: "10px",
-          marginTop: "15px",
         }}
       >
-        <h2 style={{ color: "#dc2626",marginTop: "15px" }}>
+        <h2 style={{ color: "#dc2626" }}>
           Danger Zone
         </h2>
 
-        <p style={{marginTop: "15px" }}>
+        <p>
           Permanently delete your account and all
           saved settings.
         </p>
@@ -1102,295 +1267,6 @@ export function SettingsPage() {
         >
           Save Changes
         </button>
-      </div>
-    </div>
-  );
-}
-
-export  function NotificationModule() {
-  const [tab, setTab] = useState("push");
-  const [push, setPush] = useState({ title: "", message: "" });
-  const [email, setEmail] = useState({
-    subject: "",
-    recipients: "",
-    content: "",
-  });
-  const [sms, setSms] = useState({
-    phone: "",
-    message: "",
-  });
-  const [sent, setSent] = useState([]);
-
-  const C = {
-    primary: "#e94560",
-    secondary: "#16a34a",
-    text: "#111827",
-    muted: "#6b7280",
-    border: "#e5e7eb",
-  };
-
-  const card = {
-    background: "#fff",
-    padding: 20,
-    borderRadius: 10,
-    border: `1px solid ${C.border}`,
-  };
-
-  const label = {
-    display: "block",
-    marginBottom: 6,
-    fontSize: 13,
-    fontWeight: 600,
-  };
-
-  const inputStyle = {
-    width: "100%",
-    padding: "10px",
-    border: `1px solid ${C.border}`,
-    borderRadius: 6,
-    boxSizing: "border-box",
-  };
-
-  const btn = (bg = C.primary, color = "#fff") => ({
-    background: bg,
-    color,
-    border: "none",
-    padding: "10px 14px",
-    borderRadius: 6,
-    cursor: "pointer",
-  });
-
-  const INIT_COURSES = [
-    { id: 1, name: "React Basics" },
-    { id: 2, name: "Node.js Masterclass" },
-    { id: 3, name: "Python Programming" },
-  ];
-
-  const send = (type, data) => {
-    setSent((prev) => [
-      {
-        id: Date.now(),
-        type,
-        ...data,
-        time: new Date().toLocaleTimeString(),
-      },
-      ...prev,
-    ]);
-  };
-
-  const tabs = ["push", "email", "sms", "course", "payment"];
-  const tabLabels = [
-    "Push",
-    "Email",
-    "SMS",
-    "Course Updates",
-    "Payment Reminders",
-  ];
-
-  return (
-    <div style={{ padding: 20 }}>
-      <h2 style={{ marginBottom: 20 }}>🔔 Notifications</h2>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          marginBottom: 20,
-          flexWrap: "wrap",
-        }}
-      >
-        {tabs.map((t, i) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              ...btn(
-                tab === t ? C.primary : "#f3f4f6",
-                tab === t ? "#fff" : C.text
-              ),
-              borderRadius: 20,
-              fontSize: 12,
-            }}
-          >
-            {tabLabels[i]}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", gap: 20 }}>
-        <div style={{ flex: 1 }}>
-          {tab === "push" && (
-            <div style={card}>
-              <h3>Push Notification</h3>
-
-              <div style={{ marginBottom: 12 }}>
-                <label style={label}>Title</label>
-                <input
-                  style={inputStyle}
-                  value={push.title}
-                  onChange={(e) =>
-                    setPush((p) => ({ ...p, title: e.target.value }))
-                  }
-                />
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={label}>Message</label>
-                <textarea
-                  style={{ ...inputStyle, height: 80 }}
-                  value={push.message}
-                  onChange={(e) =>
-                    setPush((p) => ({ ...p, message: e.target.value }))
-                  }
-                />
-              </div>
-
-              <button onClick={() => send("Push", push)} style={btn()}>
-                Send Push
-              </button>
-            </div>
-          )}
-
-          {tab === "email" && (
-            <div style={card}>
-              <h3>Email Notification</h3>
-
-              <div style={{ marginBottom: 12 }}>
-                <label style={label}>Subject</label>
-                <input
-                  style={inputStyle}
-                  value={email.subject}
-                  onChange={(e) =>
-                    setEmail((p) => ({ ...p, subject: e.target.value }))
-                  }
-                />
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <label style={label}>Recipients</label>
-                <input
-                  style={inputStyle}
-                  value={email.recipients}
-                  onChange={(e) =>
-                    setEmail((p) => ({ ...p, recipients: e.target.value }))
-                  }
-                />
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={label}>Content</label>
-                <textarea
-                  style={{ ...inputStyle, height: 100 }}
-                  value={email.content}
-                  onChange={(e) =>
-                    setEmail((p) => ({ ...p, content: e.target.value }))
-                  }
-                />
-              </div>
-
-              <button onClick={() => send("Email", email)} style={btn()}>
-                Send Email
-              </button>
-            </div>
-          )}
-
-          {tab === "sms" && (
-            <div style={card}>
-              <h3>SMS Alert</h3>
-
-              <div style={{ marginBottom: 12 }}>
-                <label style={label}>Phone Number</label>
-                <input
-                  style={inputStyle}
-                  value={sms.phone}
-                  onChange={(e) =>
-                    setSms((p) => ({ ...p, phone: e.target.value }))
-                  }
-                />
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={label}>Message</label>
-                <textarea
-                  style={{ ...inputStyle, height: 80 }}
-                  value={sms.message}
-                  onChange={(e) =>
-                    setSms((p) => ({ ...p, message: e.target.value }))
-                  }
-                />
-              </div>
-
-              <button onClick={() => send("SMS", sms)} style={btn()}>
-                Send SMS
-              </button>
-            </div>
-          )}
-
-          {tab === "course" && (
-            <div style={card}>
-              <h3>Course Update</h3>
-
-              <select style={inputStyle}>
-                <option>All Courses</option>
-                {INIT_COURSES.map((c) => (
-                  <option key={c.id}>{c.name}</option>
-                ))}
-              </select>
-
-              <button
-                style={{ ...btn(), marginTop: 15 }}
-                onClick={() => send("Course", { msg: "Course update" })}
-              >
-                Send Update
-              </button>
-            </div>
-          )}
-
-          {tab === "payment" && (
-            <div style={card}>
-              <h3>Payment Reminder</h3>
-
-              <select style={inputStyle}>
-                <option>All Pending Payments</option>
-                <option>EMI Due This Week</option>
-                <option>Overdue Students</option>
-              </select>
-
-              <button
-                style={{ ...btn(), marginTop: 15 }}
-                onClick={() =>
-                  send("Payment", { msg: "Payment reminder" })
-                }
-              >
-                Send Reminder
-              </button>
-            </div>
-          )}
-        </div>
-
-        {sent.length > 0 && (
-          <div style={{ width: 260 }}>
-            <div style={card}>
-              <h4 style={{ color: C.muted }}>SENT LOG</h4>
-
-              {sent.map((s) => (
-                <div
-                  key={s.id}
-                  style={{
-                    marginBottom: 10,
-                    paddingBottom: 10,
-                    borderBottom: `1px solid ${C.border}`,
-                  }}
-                >
-                  <div style={{ fontWeight: 600, color: C.secondary }}>
-                    {s.type} ✓
-                  </div>
-                  <div style={{ color: C.muted }}>{s.time}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

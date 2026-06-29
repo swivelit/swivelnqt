@@ -55,24 +55,48 @@ const DEFAULT_PAGE = {
 
 const PUBLIC_PAGES = new Set(['home', 'courses', 'trainers', 'about', 'courseDetail']);
 
+// Pages each role is allowed to land on. Shared pages (like notifications)
+// are listed under every role that can see them in their Sidebar.
+// This mirrors components/Sidebar.jsx's sidebarConfig — if you add a page
+// there, add it here too so role-based routing stays correct.
+const ROLE_PAGES = {
+  student: new Set(['student-dashboard', 'student-live', 'student-mycourses', 'student-quiz', 'student-certificates', 'student-notifications']),
+  trainer: new Set(['trainer-dashboard', 'trainer-content', 'trainer-quiz', 'trainer-attendance', 'trainer-live', 'trainer-assignments', 'trainer-notifications', 'student-notifications']),
+  admin:   new Set(['admin-dashboard', 'admin-users', 'admin-courses', 'admin-trainers', 'admin-analytics', 'admin-settings', 'student-notifications']),
+};
+
+// Is `page` something this role is actually allowed to view?
+// Public pages are always fine (e.g. browsing courses while logged in).
+// This is what stops a stale/leftover URL hash from a previous role's
+// session (or a different role's browser tab) from landing the CURRENT
+// user on a page their role can't use — which is what produces
+// "Role 'X' is not authorized" errors deeper in the app (e.g. an admin
+// token reaching the student-only quiz-submit endpoint).
+function isPageAllowed(role, page) {
+  if (PUBLIC_PAGES.has(page)) return true;
+  if (!role) return false;
+  return ROLE_PAGES[role]?.has(page) ?? false;
+}
+
 export function useAppState() {
   // Restore auth from sessionStorage on mount
   const savedAuth = loadAuth();
 
   // Determine initial page:
-  //  1. If there's a valid hash in the URL, use it
+  //  1. If there's a valid hash in the URL AND the logged-in role is
+  //     actually allowed to view it, use it
   //  2. Else if the user is logged in, use their default dashboard
   //  3. Else use 'home'
   const hashPage = PAGE_FROM_HASH();
-  const initialPage = hashPage
-    || (savedAuth.role ? DEFAULT_PAGE[savedAuth.role] || 'home' : 'home');
+  const initialPage = (hashPage && isPageAllowed(savedAuth.role, hashPage))
+    ? hashPage
+    : (savedAuth.role ? DEFAULT_PAGE[savedAuth.role] || 'home' : 'home');
 
   const [state, setState] = useState({
     role:           savedAuth.role,
     userName:       savedAuth.userName,
     page:           initialPage,
     activeTab:      0,
-    quizAnswers:    {},
     showModal:      false,
     courseView:     null,
     activeFilter:   'All',
@@ -90,7 +114,11 @@ export function useAppState() {
     const onPop = () => {
       const p = PAGE_FROM_HASH();
       if (p) {
-        setState((s) => ({ ...s, page: p, activeTab: 0 }));
+        setState((s) => ({
+          ...s,
+          page: isPageAllowed(s.role, p) ? p : (DEFAULT_PAGE[s.role] || 'home'),
+          activeTab: 0,
+        }));
       }
     };
     window.addEventListener('popstate', onPop);
@@ -150,11 +178,6 @@ export function useAppState() {
   const setFilter      = useCallback((f) => update({ activeFilter: f }), [update]);
   const setTab         = useCallback((i) => update({ activeTab: i }), [update]);
   const setShowModal   = useCallback((v) => update({ showModal: v }), [update]);
-  const answerQuiz     = useCallback(
-    (qIdx, optIdx) =>
-      setState((s) => ({ ...s, quizAnswers: { ...s.quizAnswers, [qIdx]: optIdx } })),
-    []
-  );
 
   return {
     state,
@@ -168,6 +191,5 @@ export function useAppState() {
     setFilter,
     setTab,
     setShowModal,
-    answerQuiz,
   };
 }
