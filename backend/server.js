@@ -18,6 +18,8 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/live-classes', require('./routes/liveClassRoutes'));
+app.use('/api/quizzes', require('./routes/quizRoutes'));
+app.use('/api/courses', require('./routes/courseRoutes'));
 
 // Health check
 app.get('/', (req, res) => {
