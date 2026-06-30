@@ -46,7 +46,7 @@ export default function LoginModal({ onLogin, onClose }) {
     if (!validateForm()) return;
 
     try {
-      const response = await fetch(`${API_BASE}/login`, {
+      const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
