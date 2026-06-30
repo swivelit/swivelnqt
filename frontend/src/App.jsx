@@ -16,7 +16,7 @@ import {
 } from './pages/TrainerPages';
 import {
   AdminDashboard, UserManagementPage, CourseManagementPage,
-  AnalyticsPage, SettingsPage, TrainerManagementPage,
+  AnalyticsPage, SettingsPage,TrainerManagementPage,NotificationModule,
 } from './pages/AdminPages';
 
 // ─── Page renderer ────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ const PageContent = memo(function PageContent({ page, state, actions }) {
     'admin-analytics':       <AnalyticsPage />,
     'admin-settings':        <SettingsPage />,
     'admin-trainers':        <TrainerManagementPage />,
+    'admin-notifications':   <NotificationModule />
   };
 
   return map[page] ?? map['home'];
