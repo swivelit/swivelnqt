@@ -748,10 +748,45 @@ export function AttendancePage() {
     { id: 6, name: 'Sneha R.',   initials: 'SR', av: 'av-a', course: 'Python with AI', att: ['P','P','P','P','A','P','P'] },
   ];
 
-  const WEEK = { label: 'Jan 6 – 12, 2026', days: ['Mon 6','Tue 7','Wed 8','Thu 9','Fri 10','Sat 11','Sun 12'] };
+  // Build a week object { label, days } for any week offset relative to the
+  // current week. offset 0 = the week containing today, -1 = previous week,
+  // +1 = next week, etc. This lets the calendar default to today's week and
+  // also lets the trainer page back through earlier weeks.
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const getWeekForOffset = (offset) => {
+    const now = new Date();
+    const mondayIdx = now.getDay() === 0 ? 6 : now.getDay() - 1; // Mon=0 … Sun=6
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - mondayIdx + offset * 7);
 
-  // Today's index in the week (0 = Mon … 6 = Sun); clamp to 0–6
-  const todayIdx = Math.min(Math.max(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1, 0), 6);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      days.push(`${DAY_LABELS[i]} ${d.getDate()}`);
+    }
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const monthShort = (d) => d.toLocaleDateString('en-US', { month: 'short' });
+    const label = monday.getMonth() === sunday.getMonth()
+      ? `${monthShort(monday)} ${monday.getDate()} – ${sunday.getDate()}, ${sunday.getFullYear()}`
+      : `${monthShort(monday)} ${monday.getDate()} – ${monthShort(sunday)} ${sunday.getDate()}, ${sunday.getFullYear()}`;
+
+    return { label, days };
+  };
+
+  
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  
+  const todayIdx = weekOffset === 0
+    ? Math.min(Math.max(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1, 0), 6)
+    : -1;
+
+  const goToPrevWeek = () => setWeekOffset((prev) => prev - 1);
+  const goToNextWeek = () => setWeekOffset((prev) => prev + 1);
+  const goToCurrentWeek = () => setWeekOffset(0);
 
   const [rows,          setRows]          = useState(INITIAL_ROWS);
   const [saving,        setSaving]        = useState(false);
@@ -759,11 +794,11 @@ export function AttendancePage() {
   const [saveError,     setSaveError]     = useState(null);
   // Attendance modal state
   const [attModalOpen,  setAttModalOpen]  = useState(false);
-  const [modalDayIdx,   setModalDayIdx]   = useState(todayIdx);
+  const [modalDayIdx,   setModalDayIdx]   = useState(Math.max(todayIdx, 0));
   // Temporary marks inside the modal — keyed by row id
   const [modalMarks,    setModalMarks]    = useState({});
 
-  const week     = WEEK;
+  const week     = getWeekForOffset(weekOffset);
   const CYCLE    = ['P', 'A', 'L', ''];
   const attClass = { P: 'att-present', A: 'att-absent', L: 'att-leave', '': 'att-none' };
   const attLabel = { P: 'Present', A: 'Absent', L: 'Leave', '': '—' };
@@ -811,14 +846,14 @@ export function AttendancePage() {
   };
 
   const handleModalSave = async () => {
-    // Write modal marks back into the main table for the chosen day
+    
     setRows((prev) => prev.map((r) => {
       const att = [...r.att];
       att[modalDayIdx] = modalMarks[r.id] ?? '';
       return { ...r, att };
     }));
     setAttModalOpen(false);
-    setSaved(false); // mark as unsaved so trainer can hit Save
+    setSaved(false); 
   };
 
   // ── Save to backend ────────────────────────────────────────────────────────
@@ -871,6 +906,34 @@ export function AttendancePage() {
 
         {/* ── Toolbar ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              className="action-btn"
+              style={{ fontSize: 12, padding: '4px 9px' }}
+              onClick={goToPrevWeek}
+              title="View previous week"
+            >
+              ←
+            </button>
+            <button
+              className="action-btn"
+              style={{ fontSize: 12, padding: '4px 9px' }}
+              onClick={goToNextWeek}
+              title="View next week"
+            >
+              →
+            </button>
+            {weekOffset !== 0 && (
+              <button
+                className="action-btn"
+                style={{ fontSize: 11, padding: '4px 9px' }}
+                onClick={goToCurrentWeek}
+                title="Jump back to the current week"
+              >
+                Today
+              </button>
+            )}
+          </div>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--sa-text)', flex: 1 }}>
             📅 {week.label}
           </span>
