@@ -841,18 +841,17 @@ export function AnalyticsPage() {
 }
 
 
-
 const colors = {
-  bgGradient: "linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #312e81 100%)",
-  cardBg: "rgba(255, 255, 255, 0.85)",
-  cardBorder: "rgba(255, 255, 255, 0.6)",
-  textPrimary: "#0f172a",
-  textSecondary: "#64748b",
+  bgGradient: "#ffffff",
+  cardBg: "#ffffff",
+  cardBorder: "#e2e8f0",
+  textPrimary: "#000000",
+  textSecondary: "#000000",
   accentBlueFrom: "#2563eb",
   accentBlueTo: "#4f46e5",
   accentRedFrom: "#ef4444",
   accentRedTo: "#b91c1c",
-  border: "#e2e8f0",
+  border: "#7d7d7e",
   inputBg: "#f8fafc",
   focusRing: "#6366f1",
 };
@@ -1005,8 +1004,11 @@ export function SettingsPage() {
   const [settings, setSettings] = useState({
     adminName: "Admin User",
     email: "admin@example.com",
-    platformName: "Learning Management System",
+    platformName: "Swivel Acadamy",
     maintenanceMode: false,
+    maintenanceTitle: "System Under Maintenance",
+    maintenanceMessage:
+    "We are performing scheduled maintenance. Please try again later.",
     emailNotifications: true,
     pushNotifications: false,
     twoFactorAuth: true,
@@ -1035,6 +1037,7 @@ export function SettingsPage() {
   const [hoveredBtn, setHoveredBtn] = useState("");
   const [focusedInput, setFocusedInput] = useState("");
   const [savedPulse, setSavedPulse] = useState(false);
+  
 
   useEffect(() => {
     const savedSettings = localStorage.getItem("adminSettings");
@@ -1159,6 +1162,7 @@ export function SettingsPage() {
 
     if (confirmDelete) {
       localStorage.removeItem("adminSettings");
+      window.dispatchEvent(new Event('adminSettingsUpdated'));
 
       alert("Account deleted successfully");
     }
@@ -1182,6 +1186,7 @@ export function SettingsPage() {
       })
     );
 
+    window.dispatchEvent(new Event('adminSettingsUpdated'));
     setSavedPulse(true);
     setTimeout(() => setSavedPulse(false), 1500);
     alert("Settings saved successfully!");
@@ -1191,8 +1196,6 @@ export function SettingsPage() {
 
   const cardStyle = {
     background: colors.cardBg,
-    backdropFilter: "blur(16px)",
-    WebkitBackdropFilter: "blur(16px)",
     border: `1px solid ${colors.cardBorder}`,
     borderRadius: "20px",
     padding: "28px",
@@ -1277,14 +1280,14 @@ export function SettingsPage() {
   const titleStyle = {
     fontSize: "30px",
     fontWeight: 800,
-    color: "#ffffff",
+    color: "#000000",
     letterSpacing: "-0.02em",
     margin: 0,
   };
 
   const subtitleStyle = {
     fontSize: "14px",
-    color: "rgba(255,255,255,0.65)",
+    color: "#000000",
     marginTop: "6px",
   };
 
@@ -1460,7 +1463,7 @@ export function SettingsPage() {
 
           <div style={fieldWrapStyle}>
             <label style={labelStyle} htmlFor="platformName">
-              Platform Name
+              Swivel Acadamy
             </label>
             <input
               id="platformName"
@@ -1480,6 +1483,41 @@ export function SettingsPage() {
             onChange={() => handleToggle("maintenanceMode")}
             label="Maintenance Mode"
           />
+          <div style={{ marginTop: 20 }}>
+          <div style={fieldWrapStyle}>
+            <label style={labelStyle} htmlFor="maintenanceTitle">
+              Maintenance Title
+            </label>
+            <input
+              id="maintenanceTitle"
+              type="text"
+              name="maintenanceTitle"
+              value={settings.maintenanceTitle}
+              onChange={handleChange}
+              onFocus={() => setFocusedInput("maintenanceTitle")}
+              onBlur={() => setFocusedInput("")}
+              style={getInputStyle("maintenanceTitle")}
+              placeholder="Maintenance page title"
+            />
+          </div>
+          <div style={fieldWrapStyle}>
+            <label style={labelStyle} htmlFor="maintenanceMessage">
+              Maintenance Message
+            </label>
+            <textarea
+              id="maintenanceMessage"
+              rows={4}
+              name="maintenanceMessage"
+              value={settings.maintenanceMessage}
+              onChange={handleChange}
+              style={{
+                ...getInputStyle("maintenanceMessage"),
+                resize: "vertical",
+                minHeight: 120,
+              }}
+            />
+          </div>
+        </div>
         </div>
 
         {/* Notification Settings */}
@@ -1650,7 +1688,7 @@ export function SettingsPage() {
           }}
         >
           {savedPulse && (
-            <span style={{ color: "#86efac", fontSize: "13px", fontWeight: 600 }}>
+            <span style={{ color: "#16a34a", fontSize: "13px", fontWeight: 600 }}>
               ✓ Saved
             </span>
           )}
@@ -1671,6 +1709,7 @@ export function SettingsPage() {
     </div>
   );
 }
+
 export  function NotificationModule() {
   const [tab, setTab] = useState("push");
   const [push, setPush] = useState({ title: "", message: "" });

@@ -1,5 +1,5 @@
 import './index.css';
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useAppState } from './hooks/useAppState';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -18,6 +18,7 @@ import {
   AdminDashboard, UserManagementPage, CourseManagementPage,
   AnalyticsPage, SettingsPage,TrainerManagementPage,NotificationModule,
 } from './pages/AdminPages';
+import MaintenancePage from './pages/Maintanance';
 
 // ─── Page renderer ────────────────────────────────────────────────────────────
 // Wrapped in memo so React skips re-rendering it when Navbar/Sidebar-only
@@ -57,7 +58,29 @@ const PageContent = memo(function PageContent({ page, state, actions }) {
   return map[page] ?? map['home'];
 });
 
-// ─── App shell ────────────────────────────────────────────────────────────────
+const loadAdminSettings = () => {
+  try {
+    const raw = localStorage.getItem('adminSettings');
+    if (!raw) return undefined;
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+};
+
+function useAdminSettings() {
+  const [adminSettings, setAdminSettings] = useState(loadAdminSettings());
+
+  useEffect(() => {
+    const updateSettings = () => setAdminSettings(loadAdminSettings());
+    window.addEventListener('adminSettingsUpdated', updateSettings);
+    return () => window.removeEventListener('adminSettingsUpdated', updateSettings);
+  }, []);
+
+  return adminSettings;
+}
+
+// ─── App shell ──────────────────────────────────────────────────────────────
 // Navbar and Sidebar are rendered OUTSIDE PageContent so they are never
 // unmounted or re-created when the user navigates between pages.
 // Only the <div className="content"> subtree swaps its children.
@@ -66,9 +89,14 @@ export default function App() {
     state, navigate, goPublic, login, logout, showLogin,
     closeLoginModal, openCourse, setFilter, setTab, setShowModal,
   } = useAppState();
+  const adminSettings = useAdminSettings();
+  const maintenanceMode = adminSettings?.settings?.maintenanceMode;
+  const showMaintenance = maintenanceMode && state.role !== 'admin';
 
   const actions = { navigate, goPublic, openCourse, setFilter, setTab, setShowModal, showLogin };
-
+  if (showMaintenance) {
+    return <MaintenancePage settings={adminSettings?.settings} />;
+  }
   return (
     <div className="app">
       {/* Navbar stays mounted across ALL page changes — never re-mounted */}
