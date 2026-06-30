@@ -840,6 +840,167 @@ export function AnalyticsPage() {
   );
 }
 
+
+
+const colors = {
+  bgGradient: "linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #312e81 100%)",
+  cardBg: "rgba(255, 255, 255, 0.85)",
+  cardBorder: "rgba(255, 255, 255, 0.6)",
+  textPrimary: "#0f172a",
+  textSecondary: "#64748b",
+  accentBlueFrom: "#2563eb",
+  accentBlueTo: "#4f46e5",
+  accentRedFrom: "#ef4444",
+  accentRedTo: "#b91c1c",
+  border: "#e2e8f0",
+  inputBg: "#f8fafc",
+  focusRing: "#6366f1",
+};
+
+/* ---------- Toggle Switch (module-level so it doesn't remount each render) ---------- */
+function Switch({ checked, onChange, label, id }) {
+  return (
+    <label
+      htmlFor={id}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        cursor: "pointer",
+        padding: "10px 0",
+      }}
+    >
+      <span style={{ fontSize: "14px", fontWeight: 500, color: colors.textPrimary }}>
+        {label}
+      </span>
+      <span
+        style={{
+          position: "relative",
+          width: "46px",
+          height: "26px",
+          flexShrink: 0,
+        }}
+      >
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          style={{
+            position: "absolute",
+            opacity: 0,
+            width: "100%",
+            height: "100%",
+            margin: 0,
+            cursor: "pointer",
+            zIndex: 1,
+          }}
+          aria-checked={checked}
+          role="switch"
+        />
+        <span
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            borderRadius: "999px",
+            background: checked
+              ? `linear-gradient(135deg, ${colors.accentBlueFrom}, ${colors.accentBlueTo})`
+              : "#cbd5e1",
+            transition: "background 0.25s ease",
+          }}
+        />
+        <span
+          style={{
+            position: "absolute",
+            top: "3px",
+            left: checked ? "23px" : "3px",
+            width: "20px",
+            height: "20px",
+            borderRadius: "50%",
+            background: "#ffffff",
+            boxShadow: "0 2px 5px rgba(0,0,0,0.25)",
+            transition: "left 0.25s ease",
+          }}
+        />
+      </span>
+    </label>
+  );
+}
+
+/* ---------- Password Input with toggle (module-level so it doesn't remount each render) ---------- */
+function PasswordField({
+  name,
+  placeholder,
+  label,
+  value,
+  onChangeValue,
+  error,
+  visible,
+  onToggleVisible,
+  focusedInput,
+  setFocusedInput,
+  getInputStyle,
+}) {
+  return (
+    <div style={{ marginBottom: "18px" }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: "13px",
+          fontWeight: 600,
+          color: colors.textSecondary,
+          marginBottom: "8px",
+          letterSpacing: "0.01em",
+        }}
+        htmlFor={name}
+      >
+        {label}
+      </label>
+      <div style={{ position: "relative" }}>
+        <input
+          id={name}
+          type={visible ? "text" : "password"}
+          name={name}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChangeValue}
+          onFocus={() => setFocusedInput(name)}
+          onBlur={() => setFocusedInput("")}
+          style={{ ...getInputStyle(name, focusedInput), paddingRight: "44px" }}
+          autoComplete={name === "currentPassword" ? "current-password" : "new-password"}
+        />
+        <button
+          type="button"
+          onClick={onToggleVisible}
+          aria-label={visible ? "Hide password" : "Show password"}
+          style={{
+            position: "absolute",
+            right: "10px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "16px",
+            padding: "4px",
+            lineHeight: 1,
+          }}
+        >
+          {visible ? "🙈" : "👁️"}
+        </button>
+      </div>
+      {error && (
+        <div style={{ color: "#dc2626", fontSize: "12px", marginTop: "6px", fontWeight: 500 }}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const [settings, setSettings] = useState({
     adminName: "Admin User",
@@ -862,6 +1023,19 @@ export function SettingsPage() {
     confirmPassword: "",
   });
 
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [emailError, setEmailError] = useState("");
+
+  const [showPasswords, setShowPasswords] = useState({
+    currentPassword: false,
+    newPassword: false,
+    confirmPassword: false,
+  });
+
+  const [hoveredBtn, setHoveredBtn] = useState("");
+  const [focusedInput, setFocusedInput] = useState("");
+  const [savedPulse, setSavedPulse] = useState(false);
+
   useEffect(() => {
     const savedSettings = localStorage.getItem("adminSettings");
 
@@ -880,6 +1054,31 @@ export function SettingsPage() {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+
+    if (name === "email") {
+      validateEmail(value);
+    }
+  };
+
+  const handleToggle = (name) => {
+    setSettings((prev) => ({
+      ...prev,
+      [name]: !prev[name],
+    }));
+  };
+
+  const validateEmail = (value) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!value) {
+      setEmailError("Email address is required");
+      return false;
+    }
+    if (!emailRegex.test(value)) {
+      setEmailError("Please enter a valid email address");
+      return false;
+    }
+    setEmailError("");
+    return true;
   };
 
   const handleProfilePicChange = (e) => {
@@ -891,27 +1090,43 @@ export function SettingsPage() {
   };
 
   const handlePasswordInput = (e) => {
+    const { name, value } = e.target;
     setPasswordData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: value,
     }));
+    setPasswordErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const toggleShowPassword = (field) => {
+    setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const validatePasswordFields = () => {
+    const errors = {};
+
+    if (!passwordData.currentPassword) {
+      errors.currentPassword = "Current password is required";
+    }
+
+    if (!passwordData.newPassword) {
+      errors.newPassword = "New password is required";
+    } else if (passwordData.newPassword.length < 8) {
+      errors.newPassword = "Password must be at least 8 characters";
+    }
+
+    if (!passwordData.confirmPassword) {
+      errors.confirmPassword = "Please confirm your new password";
+    } else if (passwordData.newPassword !== passwordData.confirmPassword) {
+      errors.confirmPassword = "Passwords do not match";
+    }
+
+    setPasswordErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handlePasswordReset = () => {
-    if (
-      !passwordData.currentPassword ||
-      !passwordData.newPassword ||
-      !passwordData.confirmPassword
-    ) {
-      alert("Please fill all password fields");
-      return;
-    }
-
-    if (
-      passwordData.newPassword !==
-      passwordData.confirmPassword
-    ) {
-      alert("Passwords do not match");
+    if (!validatePasswordFields()) {
       return;
     }
 
@@ -922,18 +1137,15 @@ export function SettingsPage() {
       newPassword: "",
       confirmPassword: "",
     });
+    setPasswordErrors({});
   };
 
   const handleForgotPassword = () => {
-    alert(
-      `Password reset link sent to ${settings.email}`
-    );
+    alert(`Password reset link sent to ${settings.email}`);
   };
 
   const handleLogoutAllDevices = () => {
-    const confirmLogout = window.confirm(
-      "Logout from all devices?"
-    );
+    const confirmLogout = window.confirm("Logout from all devices?");
 
     if (confirmLogout) {
       alert("Logged out from all devices");
@@ -953,6 +1165,15 @@ export function SettingsPage() {
   };
 
   const handleSave = () => {
+    if (!validateEmail(settings.email)) {
+      return;
+    }
+
+    if (!settings.adminName.trim()) {
+      alert("Admin name cannot be empty");
+      return;
+    }
+
     localStorage.setItem(
       "adminSettings",
       JSON.stringify({
@@ -961,312 +1182,779 @@ export function SettingsPage() {
       })
     );
 
+    setSavedPulse(true);
+    setTimeout(() => setSavedPulse(false), 1500);
     alert("Settings saved successfully!");
   };
 
+  /* ---------- Style tokens ---------- */
+
   const cardStyle = {
-    background: "#fff",
-    borderRadius: "12px",
-    padding: "20px",
+    background: colors.cardBg,
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    border: `1px solid ${colors.cardBorder}`,
+    borderRadius: "20px",
+    padding: "28px",
+    marginBottom: "24px",
+    boxShadow: "0 8px 30px rgba(15, 23, 42, 0.12)",
+    transition: "transform 0.25s ease, box-shadow 0.25s ease",
+  };
+
+  const cardHeaderStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
     marginBottom: "20px",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+    fontSize: "18px",
+    fontWeight: 700,
+    color: colors.textPrimary,
+    letterSpacing: "-0.01em",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: "13px",
+    fontWeight: 600,
+    color: colors.textSecondary,
+    marginBottom: "8px",
+    letterSpacing: "0.01em",
+  };
+
+  const baseInputStyle = {
+    width: "100%",
+    padding: "12px 14px",
+    border: `1.5px solid ${colors.border}`,
+    borderRadius: "10px",
+    background: colors.inputBg,
+    fontSize: "14px",
+    fontFamily: "inherit",
+    color: colors.textPrimary,
+    boxSizing: "border-box",
+    outline: "none",
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease",
+  };
+
+  const getInputStyle = (name, focusedName = focusedInput) => ({
+    ...baseInputStyle,
+    borderColor: focusedName === name ? colors.focusRing : colors.border,
+    boxShadow:
+      focusedName === name ? `0 0 0 4px rgba(99, 102, 241, 0.15)` : "none",
+    background: focusedName === name ? "#ffffff" : colors.inputBg,
+  });
+
+  const errorTextStyle = {
+    color: "#dc2626",
+    fontSize: "12px",
+    marginTop: "6px",
+    fontWeight: 500,
+  };
+
+  const fieldWrapStyle = { marginBottom: "18px" };
+
+  const pageStyle = {
+    minHeight: "100vh",
+    background: colors.bgGradient,
+    padding: "40px 20px",
+    fontFamily:
+      "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  };
+
+  const containerStyle = {
+    maxWidth: "880px",
+    margin: "0 auto",
+  };
+
+  const titleWrapStyle = {
+    marginBottom: "32px",
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+  };
+
+  const titleStyle = {
+    fontSize: "30px",
+    fontWeight: 800,
+    color: "#ffffff",
+    letterSpacing: "-0.02em",
+    margin: 0,
+  };
+
+  const subtitleStyle = {
+    fontSize: "14px",
+    color: "rgba(255,255,255,0.65)",
+    marginTop: "6px",
+  };
+
+  /* ---------- Buttons ---------- */
+
+  const buttonBase = {
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 22px",
+    fontSize: "14px",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    fontFamily: "inherit",
+  };
+
+  const getButtonStyle = (variant, key) => {
+    const isHovered = hoveredBtn === key;
+    if (variant === "primary") {
+      return {
+        ...buttonBase,
+        color: "#fff",
+        background: `linear-gradient(135deg, ${colors.accentBlueFrom}, ${colors.accentBlueTo})`,
+        boxShadow: isHovered
+          ? "0 10px 25px rgba(37, 99, 235, 0.4)"
+          : "0 4px 14px rgba(37, 99, 235, 0.25)",
+        transform: isHovered ? "translateY(-2px)" : "translateY(0)",
+      };
+    }
+    if (variant === "danger") {
+      return {
+        ...buttonBase,
+        color: "#fff",
+        background: `linear-gradient(135deg, ${colors.accentRedFrom}, ${colors.accentRedTo})`,
+        boxShadow: isHovered
+          ? "0 10px 25px rgba(239, 68, 68, 0.4)"
+          : "0 4px 14px rgba(239, 68, 68, 0.25)",
+        transform: isHovered ? "translateY(-2px)" : "translateY(0)",
+      };
+    }
+    // secondary - outlined
+    return {
+      ...buttonBase,
+      color: colors.textPrimary,
+      background: isHovered ? "#f1f5f9" : "#ffffff",
+      border: `1.5px solid ${colors.border}`,
+      boxShadow: isHovered ? "0 4px 12px rgba(15,23,42,0.08)" : "none",
+      transform: isHovered ? "translateY(-2px)" : "translateY(0)",
+    };
+  };
+
+  /* ---------- Password Input with toggle ---------- */
+
+  return (
+    <div style={pageStyle}>
+      <div style={containerStyle}>
+        <div style={titleWrapStyle}>
+          <div>
+            <h1 style={titleStyle}>⚙️ Admin Settings</h1>
+            <div style={subtitleStyle}>
+              Manage your profile, platform, and security preferences
+            </div>
+          </div>
+        </div>
+
+        {/* Profile Picture */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
+            <span>🖼️</span> Profile Picture
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: "24px",
+            }}
+          >
+            <img
+              src={profilePic}
+              alt="Profile avatar preview"
+              style={{
+                width: "120px",
+                height: "120px",
+                borderRadius: "50%",
+                objectFit: "cover",
+                border: `4px solid #ffffff`,
+                boxShadow: "0 8px 24px rgba(15, 23, 42, 0.18)",
+              }}
+            />
+
+            <div>
+              <label
+                htmlFor="profile-upload"
+                style={{
+                  ...getButtonStyle("secondary", "uploadPic"),
+                  cursor: "pointer",
+                }}
+                onMouseEnter={() => setHoveredBtn("uploadPic")}
+                onMouseLeave={() => setHoveredBtn("")}
+              >
+                📤 Upload New Photo
+              </label>
+              <input
+                id="profile-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePicChange}
+                style={{ display: "none" }}
+              />
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: colors.textSecondary,
+                  marginTop: "10px",
+                }}
+              >
+                JPG, PNG or GIF. Square images look best.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Profile Settings */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
+            <span>👤</span> Profile Settings
+          </div>
+
+          <div style={fieldWrapStyle}>
+            <label style={labelStyle} htmlFor="adminName">
+              Admin Name
+            </label>
+            <input
+              id="adminName"
+              type="text"
+              name="adminName"
+              value={settings.adminName}
+              onChange={handleChange}
+              onFocus={() => setFocusedInput("adminName")}
+              onBlur={() => setFocusedInput("")}
+              style={getInputStyle("adminName")}
+            />
+          </div>
+
+          <div style={{ marginBottom: 0 }}>
+            <label style={labelStyle} htmlFor="email">
+              Email Address
+            </label>
+            <input
+              id="email"
+              type="email"
+              name="email"
+              value={settings.email}
+              onChange={handleChange}
+              onFocus={() => setFocusedInput("email")}
+              onBlur={() => setFocusedInput("")}
+              style={getInputStyle("email")}
+            />
+            {emailError && <div style={errorTextStyle}>{emailError}</div>}
+          </div>
+        </div>
+
+        {/* Platform Settings */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
+            <span>🏷️</span> Platform Settings
+          </div>
+
+          <div style={fieldWrapStyle}>
+            <label style={labelStyle} htmlFor="platformName">
+              Platform Name
+            </label>
+            <input
+              id="platformName"
+              type="text"
+              name="platformName"
+              value={settings.platformName}
+              onChange={handleChange}
+              onFocus={() => setFocusedInput("platformName")}
+              onBlur={() => setFocusedInput("")}
+              style={getInputStyle("platformName")}
+            />
+          </div>
+
+          <Switch
+            id="maintenanceMode"
+            checked={settings.maintenanceMode}
+            onChange={() => handleToggle("maintenanceMode")}
+            label="Maintenance Mode"
+          />
+        </div>
+
+        {/* Notification Settings */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
+            <span>📧</span> Notification Settings
+          </div>
+
+          <Switch
+            id="emailNotifications"
+            checked={settings.emailNotifications}
+            onChange={() => handleToggle("emailNotifications")}
+            label="Email Notifications"
+          />
+          <Switch
+            id="pushNotifications"
+            checked={settings.pushNotifications}
+            onChange={() => handleToggle("pushNotifications")}
+            label="Push Notifications"
+          />
+        </div>
+
+        {/* Security Settings */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
+            <span>🛡️</span> Security Settings
+          </div>
+
+          <Switch
+            id="twoFactorAuth"
+            checked={settings.twoFactorAuth}
+            onChange={() => handleToggle("twoFactorAuth")}
+            label="Email Two-Factor Authentication"
+          />
+          <Switch
+            id="smsVerification"
+            checked={settings.smsVerification}
+            onChange={() => handleToggle("smsVerification")}
+            label="SMS Verification"
+          />
+        </div>
+
+        {/* Change Password */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
+            <span>🔒</span> Change Password
+          </div>
+
+          <PasswordField
+            name="currentPassword"
+            label="Current Password"
+            placeholder="Enter current password"
+            value={passwordData.currentPassword}
+            onChangeValue={handlePasswordInput}
+            error={passwordErrors.currentPassword}
+            visible={showPasswords.currentPassword}
+            onToggleVisible={() => toggleShowPassword("currentPassword")}
+            focusedInput={focusedInput}
+            setFocusedInput={setFocusedInput}
+            getInputStyle={getInputStyle}
+          />
+          <PasswordField
+            name="newPassword"
+            label="New Password"
+            placeholder="At least 8 characters"
+            value={passwordData.newPassword}
+            onChangeValue={handlePasswordInput}
+            error={passwordErrors.newPassword}
+            visible={showPasswords.newPassword}
+            onToggleVisible={() => toggleShowPassword("newPassword")}
+            focusedInput={focusedInput}
+            setFocusedInput={setFocusedInput}
+            getInputStyle={getInputStyle}
+          />
+          <PasswordField
+            name="confirmPassword"
+            label="Confirm New Password"
+            placeholder="Re-enter new password"
+            value={passwordData.confirmPassword}
+            onChangeValue={handlePasswordInput}
+            error={passwordErrors.confirmPassword}
+            visible={showPasswords.confirmPassword}
+            onToggleVisible={() => toggleShowPassword("confirmPassword")}
+            focusedInput={focusedInput}
+            setFocusedInput={setFocusedInput}
+            getInputStyle={getInputStyle}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "12px",
+              marginTop: "10px",
+            }}
+          >
+            <button
+              style={getButtonStyle("primary", "changePw")}
+              onMouseEnter={() => setHoveredBtn("changePw")}
+              onMouseLeave={() => setHoveredBtn("")}
+              onClick={handlePasswordReset}
+            >
+              🔑 Change Password
+            </button>
+
+            <button
+              style={getButtonStyle("secondary", "forgotPw")}
+              onMouseEnter={() => setHoveredBtn("forgotPw")}
+              onMouseLeave={() => setHoveredBtn("")}
+              onClick={handleForgotPassword}
+            >
+              Forgot Password?
+            </button>
+          </div>
+        </div>
+
+        {/* Session Management */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
+            <span>💻</span> Session Management
+          </div>
+
+          <button
+            style={getButtonStyle("secondary", "logoutAll")}
+            onMouseEnter={() => setHoveredBtn("logoutAll")}
+            onMouseLeave={() => setHoveredBtn("")}
+            onClick={handleLogoutAllDevices}
+          >
+            🚪 Logout From All Devices
+          </button>
+        </div>
+
+        {/* Danger Zone */}
+        <div
+          style={{
+            ...cardStyle,
+            border: "1.5px solid rgba(239, 68, 68, 0.4)",
+            background: "rgba(254, 242, 242, 0.85)",
+          }}
+        >
+          <div style={{ ...cardHeaderStyle, color: "#dc2626" }}>
+            <span>🚨</span> Danger Zone
+          </div>
+
+          <p style={{ color: "#7f1d1d", fontSize: "14px", marginBottom: "18px" }}>
+            Permanently delete your account and all saved settings. This action
+            cannot be undone.
+          </p>
+
+          <button
+            style={getButtonStyle("danger", "deleteAcct")}
+            onMouseEnter={() => setHoveredBtn("deleteAcct")}
+            onMouseLeave={() => setHoveredBtn("")}
+            onClick={handleDeleteAccount}
+          >
+            🗑️ Delete Account
+          </button>
+        </div>
+
+        {/* Save Button */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: "14px",
+            paddingBottom: "20px",
+          }}
+        >
+          {savedPulse && (
+            <span style={{ color: "#86efac", fontSize: "13px", fontWeight: 600 }}>
+              ✓ Saved
+            </span>
+          )}
+          <button
+            style={{
+              ...getButtonStyle("primary", "saveAll"),
+              padding: "14px 30px",
+              fontSize: "15px",
+            }}
+            onMouseEnter={() => setHoveredBtn("saveAll")}
+            onMouseLeave={() => setHoveredBtn("")}
+            onClick={handleSave}
+          >
+            💾 Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+export  function NotificationModule() {
+  const [tab, setTab] = useState("push");
+  const [push, setPush] = useState({ title: "", message: "" });
+  const [email, setEmail] = useState({
+    subject: "",
+    recipients: "",
+    content: "",
+  });
+  const [sms, setSms] = useState({
+    phone: "",
+    message: "",
+  });
+  const [sent, setSent] = useState([]);
+
+  const C = {
+    primary: "#e94560",
+    secondary: "#16a34a",
+    text: "#111827",
+    muted: "#6b7280",
+    border: "#e5e7eb",
+  };
+
+  const card = {
+    background: "#fff",
+    padding: 20,
+    borderRadius: 10,
+    border: `1px solid ${C.border}`,
+  };
+
+  const label = {
+    display: "block",
+    marginBottom: 6,
+    fontSize: 13,
+    fontWeight: 600,
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "10px 12px",
-    border: "1px solid #d1d5db",
-    borderRadius: "8px",
-    marginTop: "6px",
-    fontSize: "14px",
+    padding: "10px",
+    border: `1px solid ${C.border}`,
+    borderRadius: 6,
     boxSizing: "border-box",
   };
 
+  const btn = (bg = C.primary, color = "#fff") => ({
+    background: bg,
+    color,
+    border: "none",
+    padding: "10px 14px",
+    borderRadius: 6,
+    cursor: "pointer",
+  });
+
+  const INIT_COURSES = [
+    { id: 1, name: "React Basics" },
+    { id: 2, name: "Node.js Masterclass" },
+    { id: 3, name: "Python Programming" },
+  ];
+
+  const send = (type, data) => {
+    setSent((prev) => [
+      {
+        id: Date.now(),
+        type,
+        ...data,
+        time: new Date().toLocaleTimeString(),
+      },
+      ...prev,
+    ]);
+  };
+
+  const tabs = ["push", "email", "sms", "course", "payment"];
+  const tabLabels = [
+    "Push",
+    "Email",
+    "SMS",
+    "Course Updates",
+    "Payment Reminders",
+  ];
+
   return (
-    <div
-      style={{
-        padding: "24px",
-        background: "#f5f7fb",
-        minHeight: "100vh",
-      }}
-    >
-      <h1
-        style={{
-          marginBottom: "24px",
-          color: "#111827",
-        }}
-      >
-        Admin Settings
-      </h1>
+    <div style={{ padding: 20 }}>
+      <h2 style={{ marginBottom: 20 }}>🔔 Notifications</h2>
 
-      {/* Profile Picture */}
-      <div style={cardStyle}>
-        <h2>Profile Picture</h2>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "20px",
-            marginTop: "15px",
-          }}
-        >
-          <img
-            src={profilePic}
-            alt="Profile"
-            style={{
-              width: "120px",
-              height: "120px",
-              borderRadius: "50%",
-              objectFit: "cover",
-              border: "3px solid #e5e7eb",
-            }}
-          />
-
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleProfilePicChange}
-          />
-        </div>
-      </div>
-
-      {/* Profile Settings */}
-      <div style={cardStyle}>
-        <h2>Profile Settings</h2>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Admin Name</label>
-
-          <input
-            type="text"
-            name="adminName"
-            value={settings.adminName}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label>Email Address</label>
-
-          <input
-            type="email"
-            name="email"
-            value={settings.email}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-        </div>
-      </div>
-
-      {/* Platform Settings */}
-      <div style={cardStyle}>
-        <h2>Platform Settings</h2>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Platform Name</label>
-
-          <input
-            type="text"
-            name="platformName"
-            value={settings.platformName}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-        </div>
-
-        <label>
-          <input
-            type="checkbox"
-            name="maintenanceMode"
-            checked={settings.maintenanceMode}
-            onChange={handleChange}
-          />{" "}
-          Maintenance Mode
-        </label>
-      </div>
-
-      {/* Notification Settings */}
-      <div style={cardStyle}>
-        <h2>Notification Settings</h2>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-          }}
-        >
-          <label>
-            <input
-              type="checkbox"
-              name="emailNotifications"
-              checked={settings.emailNotifications}
-              onChange={handleChange}
-            />{" "}
-            Email Notifications
-          </label>
-
-          <label>
-            <input
-              type="checkbox"
-              name="pushNotifications"
-              checked={settings.pushNotifications}
-              onChange={handleChange}
-            />{" "}
-            Push Notifications
-          </label>
-        </div>
-      </div>
-
-      {/* Security Settings */}
-      <div style={cardStyle}>
-        <h2>Security Settings</h2>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-          }}
-        >
-          <label>
-            <input
-              type="checkbox"
-              name="twoFactorAuth"
-              checked={settings.twoFactorAuth}
-              onChange={handleChange}
-            />{" "}
-            Email Two-Factor Authentication
-          </label>
-
-          <label>
-            <input
-              type="checkbox"
-              name="smsVerification"
-              checked={settings.smsVerification}
-              onChange={handleChange}
-            />{" "}
-            SMS Verification
-          </label>
-        </div>
-      </div>
-
-      {/* Change Password */}
-      <div style={cardStyle}>
-        <h2>Change Password</h2>
-
-        <input
-          type="password"
-          name="currentPassword"
-          placeholder="Current Password"
-          value={passwordData.currentPassword}
-          onChange={handlePasswordInput}
-          style={inputStyle}
-        />
-
-        <input
-          type="password"
-          name="newPassword"
-          placeholder="New Password"
-          value={passwordData.newPassword}
-          onChange={handlePasswordInput}
-          style={inputStyle}
-        />
-
-        <input
-          type="password"
-          name="confirmPassword"
-          placeholder="Confirm Password"
-          value={passwordData.confirmPassword}
-          onChange={handlePasswordInput}
-          style={inputStyle}
-        />
-
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            marginTop: "15px",
-          }}
-        >
-          <button
-          className="action-btn accent"
-           onClick={handlePasswordReset}>
-            Change Password
-          </button>
-
-          <button className="action-btn"
-           onClick={handleForgotPassword}>
-            Forgot Password
-          </button>
-        </div>
-      </div>
-
-      {/* Session Management */}
-      <div style={cardStyle}>
-        <h2>Session Management</h2>
-
-        <button className="action-btn accent" onClick={handleLogoutAllDevices}>
-          Logout From All Devices
-        </button>
-      </div>
-
-      {/* Danger Zone */}
-      <div
-        style={{
-          ...cardStyle,
-          border: "1px solid #ef4444",
-        }}
-      >
-        <h2 style={{ color: "#dc2626" }}>
-          Danger Zone
-        </h2>
-
-        <p>
-          Permanently delete your account and all
-          saved settings.
-        </p>
-
-        <button
-          onClick={handleDeleteAccount}
-          className="action-btn accent"
-          style={{
-            background: "#dc2626",
-            color: "#fff",
-            border: "none",
-            padding: "10px 20px",
-            borderRadius: "8px",
-            cursor: "pointer",
-          }}
-        >
-          Delete Account
-        </button>
-      </div>
-
-      {/* Save Button */}
       <div
         style={{
           display: "flex",
-          justifyContent: "flex-end",
+          gap: 8,
+          marginBottom: 20,
+          flexWrap: "wrap",
         }}
       >
-        <button
-          onClick={handleSave}
-          className="action-btn accent"
-          style={{
-            background: "#2563eb",
-            color: "#fff",
-            border: "none",
-            padding: "12px 24px",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontWeight: "600",
-          }}
-        >
-          Save Changes
-        </button>
+        {tabs.map((t, i) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              ...btn(
+                tab === t ? C.primary : "#f3f4f6",
+                tab === t ? "#fff" : C.text
+              ),
+              borderRadius: 20,
+              fontSize: 12,
+            }}
+          >
+            {tabLabels[i]}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 20 }}>
+        <div style={{ flex: 1 }}>
+          {tab === "push" && (
+            <div style={card}>
+              <h3>Push Notification</h3>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={label}>Title</label>
+                <input
+                  style={inputStyle}
+                  value={push.title}
+                  onChange={(e) =>
+                    setPush((p) => ({ ...p, title: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={label}>Message</label>
+                <textarea
+                  style={{ ...inputStyle, height: 80 }}
+                  value={push.message}
+                  onChange={(e) =>
+                    setPush((p) => ({ ...p, message: e.target.value }))
+                  }
+                />
+              </div>
+
+              <button onClick={() => send("Push", push)} style={btn()}>
+                Send Push
+              </button>
+            </div>
+          )}
+
+          {tab === "email" && (
+            <div style={card}>
+              <h3>Email Notification</h3>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={label}>Subject</label>
+                <input
+                  style={inputStyle}
+                  value={email.subject}
+                  onChange={(e) =>
+                    setEmail((p) => ({ ...p, subject: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={label}>Recipients</label>
+                <input
+                  style={inputStyle}
+                  value={email.recipients}
+                  onChange={(e) =>
+                    setEmail((p) => ({ ...p, recipients: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={label}>Content</label>
+                <textarea
+                  style={{ ...inputStyle, height: 100 }}
+                  value={email.content}
+                  onChange={(e) =>
+                    setEmail((p) => ({ ...p, content: e.target.value }))
+                  }
+                />
+              </div>
+
+              <button onClick={() => send("Email", email)} style={btn()}>
+                Send Email
+              </button>
+            </div>
+          )}
+
+          {tab === "sms" && (
+            <div style={card}>
+              <h3>SMS Alert</h3>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={label}>Phone Number</label>
+                <input
+                  style={inputStyle}
+                  value={sms.phone}
+                  onChange={(e) =>
+                    setSms((p) => ({ ...p, phone: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={label}>Message</label>
+                <textarea
+                  style={{ ...inputStyle, height: 80 }}
+                  value={sms.message}
+                  onChange={(e) =>
+                    setSms((p) => ({ ...p, message: e.target.value }))
+                  }
+                />
+              </div>
+
+              <button onClick={() => send("SMS", sms)} style={btn()}>
+                Send SMS
+              </button>
+            </div>
+          )}
+
+          {tab === "course" && (
+            <div style={card}>
+              <h3>Course Update</h3>
+
+              <select style={inputStyle}>
+                <option>All Courses</option>
+                {INIT_COURSES.map((c) => (
+                  <option key={c.id}>{c.name}</option>
+                ))}
+              </select>
+
+              <button
+                style={{ ...btn(), marginTop: 15 }}
+                onClick={() => send("Course", { msg: "Course update" })}
+              >
+                Send Update
+              </button>
+            </div>
+          )}
+
+          {tab === "payment" && (
+            <div style={card}>
+              <h3>Payment Reminder</h3>
+
+              <select style={inputStyle}>
+                <option>All Pending Payments</option>
+                <option>EMI Due This Week</option>
+                <option>Overdue Students</option>
+              </select>
+
+              <button
+                style={{ ...btn(), marginTop: 15 }}
+                onClick={() =>
+                  send("Payment", { msg: "Payment reminder" })
+                }
+              >
+                Send Reminder
+              </button>
+            </div>
+          )}
+        </div>
+
+        {sent.length > 0 && (
+          <div style={{ width: 260 }}>
+            <div style={card}>
+              <h4 style={{ color: C.muted }}>SENT LOG</h4>
+
+              {sent.map((s) => (
+                <div
+                  key={s.id}
+                  style={{
+                    marginBottom: 10,
+                    paddingBottom: 10,
+                    borderBottom: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: C.secondary }}>
+                    {s.type} ✓
+                  </div>
+                  <div style={{ color: C.muted }}>{s.time}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
